@@ -1,50 +1,34 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Card, DataTable, Button, Input, Guardrail } from "./UI";
-import { getMainAccount } from "../src/api/userAccountsApi";
-import { useAuth } from "../src/app/AuthContext";
-import { getSettingsAccounts, updateSettingsAccounts } from "../src/api/settingsApi";
-import { runBacktest } from "../src/api/backtestApi";
+import { useAuth } from "@/app/AuthContext";
+import { useSettingsAccounts } from "@/hooks/useSettingsAccounts";
+import { type SettingsAccountsUpdateRequestDto } from "@/api/settingsApi";
+import { runBacktest, type BacktestRunResult, type BacktestTradeDto } from "@/api/backtestApi";
+import type { ServerType } from "@/types";
 
-export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) => {
+export interface SettingsProps {
+  serverType: ServerType;
+  onToggleAutoTrade?: () => void;
+  isAutoTradeOn?: boolean;
+}
+
+export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: SettingsProps) => {
   const auth = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { masked, loading, error, save } = useSettingsAccounts(auth.serverType);
   const [info, setInfo] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [appKey, setAppKey] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [accountNo, setAccountNo] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
-  const [masked, setMasked] = useState<{ appKeyMasked?: string; accountNoMasked?: string } | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await getSettingsAccounts();
-        const block = auth.serverType === 1 ? res.virtual : res.real;
-        if (!mounted) return;
-        setMasked({ appKeyMasked: block?.appKeyMasked, accountNoMasked: block?.accountNoMasked });
-      } catch (e: any) {
-        if (!mounted) return;
-        setError(e?.message || "설정 조회에 실패했습니다.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [auth.serverType]);
 
   const handleSave = async () => {
-    setError(null);
+    setSaveError(null);
     setInfo(null);
     try {
       const serverTypeKey = auth.serverType === 1 ? "virtual" : "real";
-      const payload: any = {
+      const payload: SettingsAccountsUpdateRequestDto = {
         currentPassword: currentPassword || undefined,
         [serverTypeKey]: {
           accountNo: accountNo || undefined,
@@ -52,23 +36,23 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
           appSecret: appSecret || undefined
         }
       };
-      const res = await updateSettingsAccounts(payload);
-      const block = auth.serverType === 1 ? res.virtual : res.real;
-      setMasked({ appKeyMasked: block?.appKeyMasked, accountNoMasked: block?.accountNoMasked });
+      await save(payload);
       setInfo("저장되었습니다.");
       setAppKey("");
       setAppSecret("");
       setAccountNo("");
       setCurrentPassword("");
-    } catch (e: any) {
-      setError(e?.message || "저장에 실패했습니다.");
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     }
   };
+
+  const displayError = error ?? saveError;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       {loading && <Guardrail type="info" message="설정 로딩 중…" />}
-      {error && <Guardrail type="error" message={error} />}
+      {displayError && <Guardrail type="error" message={displayError} />}
       {info && <Guardrail type="info" message={info} />}
       <Card title="계좌 및 API 연결 설정">
         <div className="space-y-4">
@@ -76,21 +60,21 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
             label="Access Key (API Key)"
             placeholder={masked?.appKeyMasked || "************************"}
             value={appKey}
-            onChange={(e: any) => setAppKey(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppKey(e.target.value)}
           />
           <Input
             label="Secret Key"
             placeholder="************************"
             type="password"
             value={appSecret}
-            onChange={(e: any) => setAppSecret(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppSecret(e.target.value)}
           />
           <div className="flex gap-4">
             <Input
               label="계좌 번호"
               placeholder={masked?.accountNoMasked || "12345678-12"}
               value={accountNo}
-              onChange={(e: any) => setAccountNo(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAccountNo(e.target.value)}
             />
             <div className="flex items-end">
               <Button variant="secondary" className="whitespace-nowrap" disabled>
@@ -103,9 +87,9 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
             type="password"
             placeholder="••••••••"
             value={currentPassword}
-            onChange={(e: any) => setCurrentPassword(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentPassword(e.target.value)}
           />
-          <p className="text-[10px] text-gray-400">※ API Key는 서버에 암호화되어 저장되며, 출금 권한은 허용하지 마십시오.</p>
+          <p className="text-[10px] text-[#8b95a1]">※ API Key는 서버에 암호화되어 저장되며, 출금 권한은 허용하지 마십시오.</p>
         </div>
       </Card>
 
@@ -114,7 +98,7 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-bold">자동 매매 활성화</div>
-              <div className="text-xs text-gray-500">시스템이 시그널에 따라 자동으로 주문을 전송합니다.</div>
+              <div className="text-xs text-[#8b95a1]">시스템이 시그널에 따라 자동으로 주문을 전송합니다.</div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input 
@@ -132,7 +116,7 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
           )}
 
           <div className="space-y-2">
-            <div className="text-[11px] font-bold text-gray-500 uppercase">자금 배분 비율 (%)</div>
+            <div className="text-[11px] font-bold text-[#8b95a1] uppercase">자금 배분 비율 (%)</div>
             <div className="flex gap-2 items-center">
               <input type="range" className="flex-1 accent-gray-800" />
               <span className="text-sm font-mono font-bold w-12 text-right">80%</span>
@@ -158,7 +142,7 @@ export const Backtest = () => {
   const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<BacktestRunResult | null>(null);
 
   const handleRun = async () => {
     setLoading(true);
@@ -172,8 +156,8 @@ export const Backtest = () => {
         initialCapital: 10000000
       });
       setResult(res);
-    } catch (e: any) {
-      setError(e?.message || "백테스트 실행에 실패했습니다.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "백테스트 실행에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -185,32 +169,32 @@ export const Backtest = () => {
       <Card title="백테스트 설정">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-4 col-span-1">
-            <div className="text-[11px] font-bold text-gray-500 uppercase">전략 선택</div>
+            <div className="text-[11px] font-bold text-[#8b95a1] uppercase">전략 선택</div>
             <select className="w-full border border-gray-300 p-2 text-sm bg-white focus:outline-none">
               <option>Trend-Follow (US)</option>
               <option>Mean-Revert (KR)</option>
               <option>Robo-ETF-01</option>
             </select>
-            <Input label="시작일" type="date" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
-            <Input label="종료일" type="date" value={endDate} onChange={(e: any) => setEndDate(e.target.value)} />
+            <Input label="시작일" type="date" value={startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartDate(e.target.value)} />
+            <Input label="종료일" type="date" value={endDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndDate(e.target.value)} />
             <Button className="w-full" disabled={loading} onClick={handleRun}>테스트 실행</Button>
           </div>
           <div className="col-span-3 border-l border-gray-100 pl-4 space-y-6">
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-gray-400 uppercase">CAGR</div>
+                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">CAGR</div>
                 <div className="text-lg font-mono font-bold">{result?.cagrPct ?? "-"}%</div>
               </div>
               <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-gray-400 uppercase">MDD</div>
-                <div className="text-lg font-mono font-bold text-gray-500">{result?.mddPct ?? "-"}%</div>
+                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">MDD</div>
+                <div className="text-lg font-mono font-bold text-[#4e5968]">{result?.mddPct ?? "-"}%</div>
               </div>
               <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-gray-400 uppercase">Sharpe</div>
+                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">Sharpe</div>
                 <div className="text-lg font-mono font-bold">{result?.sharpeRatio ?? "-"}</div>
               </div>
             </div>
-            <div className="h-64 bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm">
+            <div className="h-64 bg-[#f2f4f6] border border-dashed border-[#e5e8eb] flex items-center justify-center text-[#8b95a1] text-sm">
               [ 수익 곡선 그래프 (Placeholder) ]
             </div>
           </div>
@@ -220,13 +204,13 @@ export const Backtest = () => {
       <Card title="시뮬레이션 거래 내역">
         <DataTable 
           headers={['날짜', '종목', '구분', '가격', '수량', '수익률']}
-          rows={(result?.trades || []).map((t: any) => [
-            String(t.tradeDate || t.date || "-"),
-            String(t.symbol || "-"),
-            String(t.side || t.orderType || "-"),
-            String(t.price || "-"),
-            String(t.quantity || "-"),
-            String(t.returnPct || "-")
+          rows={(result?.trades ?? []).map((t: BacktestTradeDto) => [
+            String(t.tradeDate ?? t.date ?? "-"),
+            String(t.symbol ?? "-"),
+            String(t.side ?? t.orderType ?? "-"),
+            String(t.price ?? "-"),
+            String(t.quantity ?? "-"),
+            String(t.returnPct ?? "-")
           ])}
         />
       </Card>

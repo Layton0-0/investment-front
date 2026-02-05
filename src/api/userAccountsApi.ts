@@ -1,4 +1,4 @@
-import { apiFetch } from "./http";
+import { ApiError, apiFetch } from "./http";
 
 export interface MainAccountResponseDto {
   accountId: string;
@@ -11,8 +11,21 @@ export interface MainAccountResponseDto {
   accountName?: string;
 }
 
-export async function getMainAccount(serverType?: "0" | "1") {
+/** 메인 계좌 조회. 404(계좌 없음) 시 null 반환. */
+export async function getMainAccount(
+  serverType?: "0" | "1"
+): Promise<MainAccountResponseDto | null> {
   const qs = serverType ? `?serverType=${encodeURIComponent(serverType)}` : "";
-  return apiFetch<MainAccountResponseDto>(`/api/v1/user/accounts/main${qs}`, { method: "GET" });
+  try {
+    return await apiFetch<MainAccountResponseDto>(
+      `/api/v1/user/accounts/main${qs}`,
+      { method: "GET" }
+    );
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
+      return null;
+    }
+    throw e;
+  }
 }
 

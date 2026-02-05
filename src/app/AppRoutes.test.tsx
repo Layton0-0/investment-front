@@ -1,12 +1,16 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { AppRoutes } from "./AppRoutes";
 
+vi.mock("@/api/authApi", () => ({
+  getMyPage: vi.fn().mockRejectedValue(new Error("not logged in"))
+}));
+
 describe("routing", () => {
-  it("redirects to login when unauthenticated", async () => {
+  it("shows landing page at / when unauthenticated", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -15,7 +19,9 @@ describe("routing", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("INVESTMENT CHOI - LOGIN")).toBeInTheDocument();
+    const loginLinks = await screen.findAllByRole("link", { name: /로그인/ });
+    expect(loginLinks.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Investment Choi").length).toBeGreaterThanOrEqual(1);
   });
 });
 

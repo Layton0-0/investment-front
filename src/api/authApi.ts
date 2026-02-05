@@ -69,9 +69,10 @@ export function verifyAccount(request: AccountVerifyRequestDto) {
   });
 }
 
-export function getMyPage() {
+export function getMyPage(init?: { skipUnauthorizedHandler?: boolean }) {
   return apiFetch<MyPageResponseDto>("/api/v1/auth/mypage", {
-    method: "GET"
+    method: "GET",
+    ...init
   });
 }
 

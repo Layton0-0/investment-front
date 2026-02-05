@@ -3,7 +3,7 @@ import { apiFetch } from "./http";
 export interface TriggerResponse {
   success: boolean;
   message: string;
-  [k: string]: any;
+  [k: string]: unknown;
 }
 
 export function trigger(path: string) {

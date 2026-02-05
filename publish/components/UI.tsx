@@ -75,7 +75,13 @@ export const DataTable = ({ headers, rows }: { headers: string[], rows: any[][] 
         {rows.length > 0 ? rows.map((row, i) => (
           <tr key={i} className="hover:bg-[#f9fafb] transition-colors">
             {row.map((cell, j) => (
-              <td key={j} className="px-4 py-4 text-[15px] text-[#333d4b] font-medium">{cell}</td>
+              <td key={j} className="px-4 py-4 text-[15px] text-[#333d4b] font-medium">
+                {typeof cell === 'string' && (cell.startsWith('+') || cell.startsWith('-')) ? (
+                  <span className={`px-2 py-0.5 rounded-lg font-bold ${cell.startsWith('+') ? 'text-[#f04452] bg-[#f04452]/5' : 'text-[#3182f6] bg-[#3182f6]/5'}`}>
+                    {cell}
+                  </span>
+                ) : cell}
+              </td>
             ))}
           </tr>
         )) : (
@@ -135,8 +141,8 @@ export const Guardrail = ({ message, type = 'warning', actionLabel, onAction }: 
 
 export const Stat = ({ label, value, trend }: { label: string, value: string | number, trend?: 'positive' | 'negative' | 'neutral' }) => {
   const trendColors = {
-    positive: 'text-[#f04452]',
-    negative: 'text-[#3182f6]',
+    positive: 'text-[#f04452]', // Toss style: Profit/Rise is Red
+    negative: 'text-[#3182f6]', // Toss style: Loss/Fall is Blue
     neutral: 'text-[#333d4b]'
   };
   return (
@@ -146,10 +152,3 @@ export const Stat = ({ label, value, trend }: { label: string, value: string | n
     </div>
   );
 };
-
-// Kept for compatibility with some mock pages that import it.
-export const FilterBar = ({ children, className = "" }: { children?: React.ReactNode, className?: string }) => (
-  <div className={`bg-white p-4 rounded-2xl border border-[#f2f4f6] ${className}`}>
-    {children}
-  </div>
-);

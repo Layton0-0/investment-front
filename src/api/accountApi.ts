@@ -1,4 +1,4 @@
-import { apiFetch } from "./http";
+import { ApiError, apiFetch } from "./http";
 
 export interface AccountAssetDto {
   accountNo: string;
@@ -24,16 +24,37 @@ export interface AccountPositionDto {
   market?: string;
 }
 
-export function getAccountAssets(accountNo: string) {
-  return apiFetch<AccountAssetDto>(`/api/v1/accounts/${encodeURIComponent(accountNo)}/assets`, {
-    method: "GET"
-  });
+/** 자산 현황 조회. 404/400(계좌 없음 등) 시 null 반환. */
+export async function getAccountAssets(
+  accountNo: string
+): Promise<AccountAssetDto | null> {
+  try {
+    return await apiFetch<AccountAssetDto>(
+      `/api/v1/accounts/${encodeURIComponent(accountNo)}/assets`,
+      { method: "GET" }
+    );
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
+      return null;
+    }
+    throw e;
+  }
 }
 
-export function getPositions(accountNo: string) {
-  return apiFetch<AccountPositionDto[]>(
-    `/api/v1/accounts/${encodeURIComponent(accountNo)}/positions`,
-    { method: "GET" }
-  );
+/** 보유 종목 조회. 404 시 빈 배열 반환. */
+export async function getPositions(
+  accountNo: string
+): Promise<AccountPositionDto[]> {
+  try {
+    return await apiFetch<AccountPositionDto[]>(
+      `/api/v1/accounts/${encodeURIComponent(accountNo)}/positions`,
+      { method: "GET" }
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      return [];
+    }
+    throw e;
+  }
 }
 

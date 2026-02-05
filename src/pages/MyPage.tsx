@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Card, Guardrail } from "../../components/UI";
-import { getMyPage } from "../api/authApi";
-import { ApiError } from "../api/http";
-import { useAuth } from "../app/AuthContext";
+import { Card, Guardrail } from "@/components/UI";
+import { getMyPage } from "@/api/authApi";
+import { ApiError } from "@/api/http";
+import { useAuth } from "@/app/AuthContext";
 
 export function MyPage() {
   const auth = useAuth();

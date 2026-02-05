@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Card, DataTable, Button, Input, Guardrail } from "./UI";
-import { useAuth } from "../src/app/AuthContext";
-import { getMainAccount } from "../src/api/userAccountsApi";
-import { cancelOrder, getOrders } from "../src/api/ordersApi";
-import { getNews } from "../src/api/newsApi";
-import { getTodayPortfolio } from "../src/api/tradingPortfolioApi";
+import { useAuth } from "@/app/AuthContext";
+import { getMainAccount } from "@/api/userAccountsApi";
+import { cancelOrder, getOrders } from "@/api/ordersApi";
+import { getNews, type NewsItemDto } from "@/api/newsApi";
+import { getTodayPortfolio, type TradingPortfolioDto, type TradingPortfolioItemDto } from "@/api/tradingPortfolioApi";
+import type { OrderResponseDto } from "@/api/ordersApi";
+import { getSafeHref } from "@/utils/secureUrl";
 
 export const News = () => {
   const [market, setMarket] = useState("");
@@ -15,35 +17,34 @@ export const News = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<NewsItemDto[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await getNews({ market, source, from, symbol, title, page: 0, size: 20 });
-      setRows(res.content || []);
-    } catch (e: any) {
-      setError(e?.message || "뉴스 조회에 실패했습니다.");
+      setRows(res.content ?? []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "뉴스 조회에 실패했습니다.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [market, source, from, symbol, title]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-4 border border-gray-200 rounded-2xl">
+      <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-4 rounded-2xl border border-[#f2f4f6]">
         <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
-          <Input label="원천" placeholder="DART/SEC_EDGAR..." value={source} onChange={(e: any) => setSource(e.target.value)} />
-          <Input label="시장" placeholder="KR/US" value={market} onChange={(e: any) => setMarket(e.target.value)} />
-          <Input label="시작일" type="date" value={from} onChange={(e: any) => setFrom(e.target.value)} />
-          <Input label="종목" placeholder="AAPL..." value={symbol} onChange={(e: any) => setSymbol(e.target.value)} />
-          <Input label="제목" placeholder="키워드..." value={title} onChange={(e: any) => setTitle(e.target.value)} />
+          <Input label="원천" placeholder="DART/SEC_EDGAR..." value={source} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSource(e.target.value)} />
+          <Input label="시장" placeholder="KR/US" value={market} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMarket(e.target.value)} />
+          <Input label="시작일" type="date" value={from} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFrom(e.target.value)} />
+          <Input label="종목" placeholder="AAPL..." value={symbol} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSymbol(e.target.value)} />
+          <Input label="제목" placeholder="키워드..." value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} />
         </div>
         <Button disabled={loading} onClick={load}>필터 적용</Button>
       </div>
@@ -53,19 +54,23 @@ export const News = () => {
       <Card title="시장 뉴스 및 공시 목록">
         <DataTable
           headers={["시간", "시장", "종목", "구분", "제목", "원천"]}
-          rows={(rows || []).map((n: any) => [
-            String(n.createdAt || "-"),
-            String(n.market || "-"),
-            String(n.symbol || "-"),
-            String(n.itemType || "-"),
-            n.url ? (
-              <a className="underline" href={n.url} target="_blank" rel="noreferrer">
-                {n.title}
-              </a>
-            ) : (
-              String(n.title || "-")
-            ),
-            String(n.source || "-")
+          rows={rows.map((n) => [
+            String(n.createdAt ?? "-"),
+            String(n.market ?? "-"),
+            String(n.symbol ?? "-"),
+            String(n.itemType ?? "-"),
+            (() => {
+              const safeHref = getSafeHref(n.url);
+              if (safeHref) {
+                return (
+                  <a className="underline" href={safeHref} target="_blank" rel="noopener noreferrer">
+                    {n.title}
+                  </a>
+                );
+              }
+              return String(n.title ?? "-");
+            })(),
+            String(n.source ?? "-")
           ])}
         />
       </Card>
@@ -76,7 +81,7 @@ export const News = () => {
 export const Portfolio = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [portfolio, setPortfolio] = useState<any>(null);
+  const [portfolio, setPortfolio] = useState<TradingPortfolioDto | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -84,8 +89,8 @@ export const Portfolio = () => {
       try {
         const res = await getTodayPortfolio();
         if (mounted) setPortfolio(res);
-      } catch (e: any) {
-        if (mounted) setError(e?.message || "포트폴리오 조회에 실패했습니다.");
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : "포트폴리오 조회에 실패했습니다.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -102,27 +107,27 @@ export const Portfolio = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="자산 배분 현황" className="md:col-span-1">
-          <div className="h-48 bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-[10px] text-gray-400">
+          <div className="h-48 bg-[#f2f4f6] border border-dashed border-[#e5e8eb] flex items-center justify-center text-[10px] text-[#8b95a1]">
             [ ASSET ALLOCATION CHART ]
           </div>
         </Card>
         <Card title="트레이딩 포트폴리오 (Today)" className="md:col-span-2">
           <DataTable
             headers={["종목", "시장", "진입가", "목표가", "손절가", "사유"]}
-            rows={(portfolio?.items || []).map((it: any) => [
-              String(it.symbol || "-"),
-              String(it.market || "-"),
-              String(it.entryPrice || "-"),
-              String(it.targetPrice || "-"),
-              String(it.stopLossPrice || "-"),
-              String(it.reason || "-")
+            rows={(portfolio?.items ?? []).map((it: TradingPortfolioItemDto) => [
+              String(it.symbol ?? "-"),
+              String(it.market ?? "-"),
+              String(it.entryPrice ?? "-"),
+              String(it.targetPrice ?? "-"),
+              String(it.stopLossPrice ?? "-"),
+              String(it.reason ?? "-")
             ])}
           />
         </Card>
       </div>
 
       <Card title="리스크 관리 전략">
-        <div className="text-[13px] text-[#4e5968] whitespace-pre-wrap">
+        <div className="text-[13px] whitespace-pre-wrap text-[#8b95a1]">
           {portfolio?.riskManagementStrategy || "N/A"}
         </div>
       </Card>
@@ -135,27 +140,26 @@ export const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accountNo, setAccountNo] = useState<string | null>(null);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<OrderResponseDto[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
-      setAccountNo(main.accountNo);
-      const list = await getOrders(main.accountNo);
-      setItems(list || []);
-    } catch (e: any) {
-      setError(e?.message || "주문 조회에 실패했습니다.");
+      setAccountNo(main?.accountNo ?? null);
+      const list = main ? await getOrders(main.accountNo) : [];
+      setItems(list);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "주문 조회에 실패했습니다.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [auth.serverType]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.serverType]);
+  }, [load]);
 
   return (
     <div className="space-y-6">
@@ -175,13 +179,13 @@ export const Orders = () => {
       <Card title="주문 및 체결 내역">
         <DataTable
           headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "관리"]}
-          rows={(items || []).map((o: any) => [
-            String(o.orderTime || "-"),
-            String(o.symbol || "-"),
-            String(o.orderType || "-"),
-            String(o.price || "-"),
+          rows={items.map((o) => [
+            String(o.orderTime ?? "-"),
+            String(o.symbol ?? "-"),
+            String(o.orderType ?? "-"),
+            String(o.price ?? "-"),
             String(o.quantity ?? "-"),
-            String(o.status || "-"),
+            String(o.status ?? "-"),
             o.status === "PENDING" && accountNo ? (
               <Button
                 variant="ghost"
@@ -198,6 +202,7 @@ export const Orders = () => {
               "-"
             )
           ])}
+          getRowKey={(_, i) => `order-${items[i]?.orderId ?? i}`}
         />
       </Card>
     </div>

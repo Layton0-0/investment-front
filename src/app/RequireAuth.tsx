@@ -6,7 +6,7 @@ export function RequireAuth() {
   const auth = useAuth();
   const location = useLocation();
 
-  if (!auth.isLoggedIn || !auth.accessToken) {
+  if (!auth.isLoggedIn) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 

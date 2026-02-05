@@ -8,13 +8,25 @@ export interface BacktestRunRequest {
   initialCapital?: number;
 }
 
+export interface BacktestTradeDto {
+  date?: string;
+  tradeDate?: string;
+  symbol?: string;
+  side?: string;
+  orderType?: string;
+  price?: number;
+  quantity?: number;
+  returnPct?: string | number;
+  [key: string]: unknown;
+}
+
 export interface BacktestRunResult {
   warningMessage?: string;
   cagrPct?: number;
   mddPct?: number;
   sharpeRatio?: number;
   equityCurve?: Array<{ date: string; value: number }>;
-  trades?: any[];
+  trades?: BacktestTradeDto[];
 }
 
 export function runBacktest(request: BacktestRunRequest) {

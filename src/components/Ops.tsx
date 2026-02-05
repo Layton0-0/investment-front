@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
-import { trigger } from "../src/api/triggerApi";
+import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
+import { trigger } from "@/api/triggerApi";
 
 export const OpsDashboard = ({ subPage }: { subPage: string }) => {
   const renderContent = () => {
@@ -41,12 +42,12 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
           <div className="space-y-4">
             <Card title="리스크 리포트">
               <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="p-4 border border-gray-200">
-                  <div className="text-[10px] font-bold text-gray-400">VaR (95%)</div>
-                  <div className="text-xl font-mono">₩45,200,000</div>
+                <div className="p-4 border border-[#f2f4f6]">
+                  <div className="text-[10px] font-bold text-[#8b95a1]">VaR (95%)</div>
+                  <div className="text-xl font-mono text-[#191f28]">₩45,200,000</div>
                 </div>
-                <div className="p-4 border border-gray-200">
-                  <div className="text-[10px] font-bold text-gray-400">BETA (Benchmark)</div>
+                <div className="p-4 border border-[#f2f4f6]">
+                  <div className="text-[10px] font-bold text-[#8b95a1]">BETA (Benchmark)</div>
                   <div className="text-xl font-mono">1.12</div>
                 </div>
               </div>
@@ -126,7 +127,13 @@ const HealthView = () => (
   </div>
 );
 
-const HealthCard = ({ label, value, status }: any) => (
+interface HealthCardProps {
+  label: string;
+  value: string;
+  status: string;
+}
+
+const HealthCard = ({ label, value, status }: HealthCardProps) => (
   <div className="border border-gray-200 p-3 bg-white">
     <div className="text-[10px] font-bold text-gray-400 uppercase">{label}</div>
     <div className="flex justify-between items-end mt-1">
@@ -136,65 +143,86 @@ const HealthCard = ({ label, value, status }: any) => (
   </div>
 );
 
+const TRIGGER_PATH_PREFIX = "/api/v1/trigger/";
+
+function triggerPathToSuffix(triggerPath: string | undefined): string | null {
+  if (!triggerPath || !triggerPath.startsWith(TRIGGER_PATH_PREFIX)) return null;
+  return triggerPath.slice(TRIGGER_PATH_PREFIX.length) || null;
+}
+
+function formatDateTime(iso: string | undefined): string {
+  if (!iso) return "-";
+  try {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
+}
+
 export const Batch = ({ role }: { role: string }) => {
-  const isOps = role === 'Ops';
+  const isOps = role === "Ops";
   const [message, setMessage] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<BatchJobDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getBatchJobs()
+      .then((list) => {
+        if (mounted) setJobs(list ?? []);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "배치 목록 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const run = async (path: string) => {
     try {
       const res = await trigger(path);
       setMessage(res.message || (res.success ? "실행 완료" : "실행 실패"));
-    } catch (e: any) {
-      setMessage(e?.message || "실행 실패");
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "실행 실패");
     }
   };
+
+  const rows = jobs.map((job) => {
+    const triggerSuffix = triggerPathToSuffix(job.triggerPath);
+    const action =
+      isOps && triggerSuffix ? (
+        <Button variant="ghost" className="text-[10px] p-1" onClick={() => run(triggerSuffix)}>
+          실행
+        </Button>
+      ) : (
+        "-"
+      );
+    return [
+      job.name ?? job.description ?? job.id ?? "-",
+      job.cronDescription ?? job.cronExpression ?? "-",
+      formatDateTime(job.lastExecutionTime),
+      job.status ?? "-",
+      action
+    ];
+  });
+
   return (
     <div className="space-y-6">
       {message && <Guardrail type="info" message={message} />}
+      {loading && <Guardrail type="info" message="스케줄 목록 로딩 중…" />}
+      {error && <Guardrail type="error" message={error} />}
       <Card title="스케줄 현황 (Batch Jobs)">
-        <DataTable 
-          headers={['Job Name', 'Schedule', 'Last Run', 'Status', 'Action']}
-          rows={[
-            [
-              "DART 공시 수집",
-              "Manual",
-              "-",
-              "-",
-              isOps ? (
-                <Button variant="ghost" className="text-[10px] p-1" onClick={() => run("dart-collect")}>
-                  실행
-                </Button>
-              ) : (
-                "-"
-              )
-            ],
-            [
-              "SEC EDGAR 공시 수집",
-              "Manual",
-              "-",
-              "-",
-              isOps ? (
-                <Button variant="ghost" className="text-[10px] p-1" onClick={() => run("sec-collect")}>
-                  실행
-                </Button>
-              ) : (
-                "-"
-              )
-            ],
-            [
-              "팩터 계산",
-              "Manual",
-              "-",
-              "-",
-              isOps ? (
-                <Button variant="ghost" className="text-[10px] p-1" onClick={() => run("factor-calculation")}>
-                  실행
-                </Button>
-              ) : (
-                "-"
-              )
-            ],
-          ]}
+        <DataTable
+          headers={["Job Name", "Schedule", "Last Run", "Status", "Action"]}
+          rows={rows}
         />
       </Card>
       {!isOps && (

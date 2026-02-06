@@ -2,6 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
+import {
+  getRiskSummary,
+  getRiskLimits,
+  getRiskHistory,
+  type RiskSummaryDto,
+  type RiskLimitsDto,
+  type RiskHistoryItemDto,
+} from "@/api/riskApi";
 
 export const OpsDashboard = ({ subPage }: { subPage: string }) => {
   const renderContent = () => {
@@ -38,30 +46,7 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
           </div>
         );
       case 'risk':
-        return (
-          <div className="space-y-4">
-            <Card title="리스크 리포트">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="p-4 border border-[#f2f4f6]">
-                  <div className="text-[10px] font-bold text-[#8b95a1]">VaR (95%)</div>
-                  <div className="text-xl font-mono text-[#191f28]">₩45,200,000</div>
-                </div>
-                <div className="p-4 border border-[#f2f4f6]">
-                  <div className="text-[10px] font-bold text-[#8b95a1]">BETA (Benchmark)</div>
-                  <div className="text-xl font-mono">1.12</div>
-                </div>
-              </div>
-              <DataTable 
-                headers={['Metric', 'Current', 'Limit', 'Status']}
-                rows={[
-                  ['Daily Drawdown', '1.2%', '2.0%', 'SAFE'],
-                  ['Max Leverage', '1.0x', '1.5x', 'SAFE'],
-                  ['Concentration', '15%', '20%', 'SAFE'],
-                ]}
-              />
-            </Card>
-          </div>
-        );
+        return <RiskView />;
       case 'health':
         return <HealthView />;
       case 'model':
@@ -105,6 +90,153 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
         </div>
       </div>
       {renderContent()}
+    </div>
+  );
+};
+
+function formatNumber(n: number | undefined): string {
+  if (n === undefined || n === null) return "-";
+  return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(n);
+}
+
+function formatPct(n: number | undefined): string {
+  if (n === undefined || n === null) return "-";
+  return `${formatNumber(n)}%`;
+}
+
+const RiskView = () => {
+  const [summary, setSummary] = useState<RiskSummaryDto | null>(null);
+  const [limits, setLimits] = useState<RiskLimitsDto | null>(null);
+  const [history, setHistory] = useState<RiskHistoryItemDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      getRiskSummary(),
+      getRiskLimits(),
+      getRiskHistory(),
+    ])
+      .then(([s, l, h]) => {
+        if (mounted) {
+          setSummary(s);
+          setLimits(l);
+          setHistory(h ?? []);
+        }
+      })
+      .catch((e: unknown) => {
+        if (mounted) {
+          setError(e instanceof Error ? e.message : "리스크 데이터 조회에 실패했습니다.");
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="info" message="리스크 리포트 로딩 중…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="error" message={error} />
+      </div>
+    );
+  }
+
+  const summaryRows =
+    summary?.accounts?.map((a) => [
+      a.accountNoMasked ?? "-",
+      a.serverType === "1" ? "모의" : "실거래",
+      formatNumber(a.openingBalance),
+      formatNumber(a.currentValue),
+      a.newBuyBlockedByDailyLoss ? "차단" : "허용",
+      a.mdd != null ? formatPct(Number(a.mdd) * 100) : "-",
+      formatNumber(a.peakValue),
+    ]) ?? [];
+
+  const limitsRows: string[][] = [];
+  if (limits) {
+    limitsRows.push(
+      ["레짐 게이트", limits.regimeGateEnabled ? "사용" : "미사용"],
+      ["VIX 임계값", formatNumber(limits.vixThreshold)],
+      ["고변동 시 축소 비율", formatPct(limits.reduceSizeOnHighVolPct)],
+      ["일일 손실 한도", formatPct(limits.dailyLossLimitPct)]
+    );
+  }
+
+  const historyRows =
+    history?.map((h) => [
+      h.occurredAt
+        ? new Date(h.occurredAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })
+        : "-",
+      h.eventType ?? "-",
+      h.accountNoMasked ?? "-",
+      h.description ?? "-",
+    ]) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card title="리스크 요약 (백엔드 연동)">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">킬스위치</div>
+            <div className="text-lg font-mono text-[#191f28]">
+              {summary?.killSwitchActive ? "활성 (주문 차단)" : "비활성"}
+            </div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">레짐 게이트</div>
+            <div className="text-lg font-mono">{summary?.regimeGateEnabled ? "사용" : "미사용"}</div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">신규 매수</div>
+            <div className="text-lg font-mono">
+              {summary?.riskGateAllowsNewBuy ? "허용" : "제한"}
+            </div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">게이트 배율</div>
+            <div className="text-lg font-mono">
+              {summary?.riskGateSizeMultiplier != null
+                ? formatNumber(Number(summary.riskGateSizeMultiplier))
+                : "-"}
+            </div>
+          </div>
+        </div>
+        {summaryRows.length > 0 && (
+          <DataTable
+            headers={["계좌", "서버", "시초 평가액", "현재 평가액", "신규 매수", "MDD", "피크"]}
+            rows={summaryRows}
+          />
+        )}
+      </Card>
+      {limitsRows.length > 0 && (
+        <Card title="한도 설정">
+          <DataTable headers={["항목", "값"]} rows={limitsRows} />
+        </Card>
+      )}
+      <Card title="리스크 이력 (게이트 축소·손실 한도 도달 등)">
+        {historyRows.length > 0 ? (
+          <DataTable
+            headers={["일시", "유형", "계좌", "설명"]}
+            rows={historyRows}
+          />
+        ) : (
+          <p className="text-sm text-gray-500">이력이 없습니다.</p>
+        )}
+      </Card>
     </div>
   );
 };
@@ -200,7 +332,7 @@ export const Batch = ({ role }: { role: string }) => {
     const action =
       isOps && triggerSuffix ? (
         <Button variant="ghost" className="text-[10px] p-1" onClick={() => run(triggerSuffix)}>
-          실행
+          지금 실행
         </Button>
       ) : (
         "-"
@@ -221,7 +353,7 @@ export const Batch = ({ role }: { role: string }) => {
       {error && <Guardrail type="error" message={error} />}
       <Card title="스케줄 현황 (Batch Jobs)">
         <DataTable
-          headers={["Job Name", "Schedule", "Last Run", "Status", "Action"]}
+          headers={["Job 이름", "스케줄", "마지막 실행", "상태", "지금 실행"]}
           rows={rows}
         />
       </Card>

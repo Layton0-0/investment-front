@@ -449,11 +449,21 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
   );
 };
 
+function getDefaultBacktestEndDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getDefaultBacktestStartDate(): string {
+  const end = new Date();
+  const start = new Date(end.getFullYear(), end.getMonth() - 1, end.getDate());
+  return start.toISOString().slice(0, 10);
+}
+
 export const Backtest = () => {
   const auth = useAuth();
   const [mode, setMode] = useState<"pipeline" | "robo">("pipeline");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(getDefaultBacktestStartDate);
+  const [endDate, setEndDate] = useState(getDefaultBacktestEndDate);
   const [initialCapital, setInitialCapital] = useState("10000000");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

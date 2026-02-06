@@ -21,7 +21,7 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (role: Role) => {
+  const handleLogin = async () => {
     setError(null);
     setFieldErrors({});
     const validation = validateLogin({ username: userId, password });
@@ -33,6 +33,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       const res = await loginApi({ username: userId.trim(), password });
+      const role: Role = res.role === "Ops" ? "Ops" : "User";
       auth.login({ role, userId: res.userId, username: res.username });
       navigate("/dashboard");
     } catch {
@@ -118,7 +119,7 @@ export function LoginPage() {
               <Input
                 id="login-userid"
                 type="text"
-                placeholder="admin / user"
+                placeholder="아이디 입력"
                 value={userId}
                 onChange={(e) => {
                   setUserId(e.target.value);
@@ -157,19 +158,9 @@ export function LoginPage() {
               size="lg"
               className="w-full"
               disabled={loading}
-              onClick={() => handleLogin("User")}
+              onClick={() => handleLogin()}
             >
               {loading ? "로그인 중..." : "로그인"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              disabled={loading}
-              onClick={() => handleLogin("Ops")}
-            >
-              OPS 로그인
             </Button>
           </div>
 

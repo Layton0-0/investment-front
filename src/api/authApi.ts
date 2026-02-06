@@ -4,6 +4,7 @@ export interface AuthResponseDto {
   token: string;
   userId: string;
   username: string;
+  role?: string;
   message?: string;
 }
 
@@ -45,6 +46,31 @@ export interface MyPageResponseDto {
   serverType?: string;
 }
 
+/** 마이페이지 수정 요청 (비밀번호·API 키 등). 변경하지 않을 필드는 생략 */
+export interface MyPageUpdateRequestDto {
+  currentPassword?: string;
+  password?: string;
+  brokerType?: string;
+  appKey?: string;
+  appSecret?: string;
+  serverType?: string;
+  accountNo?: string;
+}
+
+export function getMyPage(init?: { skipUnauthorizedHandler?: boolean }) {
+  return apiFetch<MyPageResponseDto>("/api/v1/auth/mypage", {
+    method: "GET",
+    ...init
+  });
+}
+
+export function updateMyPage(request: MyPageUpdateRequestDto) {
+  return apiFetch<MyPageResponseDto>("/api/v1/auth/mypage", {
+    method: "PUT",
+    body: JSON.stringify(request)
+  });
+}
+
 export function login(request: LoginRequestDto) {
   return apiFetch<AuthResponseDto>("/api/v1/auth/login", {
     method: "POST",
@@ -66,13 +92,6 @@ export function verifyAccount(request: AccountVerifyRequestDto) {
     method: "POST",
     body: JSON.stringify(request),
     skipAuth: true
-  });
-}
-
-export function getMyPage(init?: { skipUnauthorizedHandler?: boolean }) {
-  return apiFetch<MyPageResponseDto>("/api/v1/auth/mypage", {
-    method: "GET",
-    ...init
   });
 }
 

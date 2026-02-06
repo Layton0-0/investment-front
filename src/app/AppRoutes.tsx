@@ -2,13 +2,16 @@ import React, { useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import { setUnauthorizedHandler } from "@/api/http";
-import { Dashboard } from "@/components/Dashboard";
-import { AutoInvest, Strategy } from "@/components/Investment";
-import { News, Orders, Portfolio } from "@/components/Market";
-import { Backtest, Settings } from "@/components/System";
-import { Batch } from "@/components/Ops";
+import AutoInvestPage from "@/pages/app/AutoInvestPage";
+import StrategyPage from "@/pages/app/StrategyPage";
+import NewsPage from "@/pages/app/NewsPage";
+import PortfolioPage from "@/pages/app/PortfolioPage";
+import OrdersPage from "@/pages/app/OrdersPage";
+import BatchPage from "@/pages/app/BatchPage";
+import BacktestPage from "@/pages/app/BacktestPage";
+import SettingsPage from "@/pages/app/SettingsPage";
 
-import { AppShell } from "./AppShell";
+import { AppLayout } from "@/components/layout";
 import { RequireAuth } from "./RequireAuth";
 
 import { IndexPage } from "@/pages/IndexPage";
@@ -16,19 +19,9 @@ import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { MyPage } from "@/pages/MyPage";
 import { OpsPage } from "@/pages/OpsPage";
+import TaxReportPage from "@/pages/app/TaxReportPage";
+import DashboardPage from "@/pages/app/DashboardPage";
 import { useAuth } from "./AuthContext";
-
-function DashboardRoute() {
-  const auth = useAuth();
-  const navigate = useNavigate();
-  return (
-    <Dashboard
-      serverType={auth.serverType}
-      hasAccount={true}
-      onNavigate={(path: string) => navigate(path)}
-    />
-  );
-}
 
 export function AppRoutes() {
   const auth = useAuth();
@@ -50,20 +43,24 @@ export function AppRoutes() {
       <Route path="/register" element={<Navigate to="/signup" replace />} />
 
       <Route element={<RequireAuth />}>
-        <Route element={<AppShell />}>
-          <Route path="/dashboard" element={<DashboardRoute />} />
-          <Route path="/auto-invest" element={<AutoInvest />} />
-          <Route path="/strategies/kr" element={<Strategy market="kr" />} />
-          <Route path="/strategies/us" element={<Strategy market="us" />} />
-          <Route path="/news" element={<News />} />
-          <Route path="/portfolio" element={<Portfolio />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/batch" element={<Batch role={auth.role} />} />
-          <Route path="/backtest" element={<Backtest />} />
-          <Route path="/settings" element={<Settings serverType={auth.serverType} />} />
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/auto-invest" element={<AutoInvestPage />} />
+          <Route path="/strategies/:market" element={<StrategyPage />} />
+          <Route path="/news" element={<NewsPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/batch" element={<BatchPage />} />
+          <Route path="/backtest" element={<BacktestPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/mypage" element={<MyPage />} />
+          <Route path="/report/tax" element={<TaxReportPage />} />
           <Route path="/risk" element={<OpsPage />} />
-          <Route path="/ops/:subPage" element={<OpsPage />} />
+          <Route path="/ops/data" element={<OpsPage />} />
+          <Route path="/ops/alerts" element={<OpsPage />} />
+          <Route path="/ops/model" element={<OpsPage />} />
+          <Route path="/ops/audit" element={<OpsPage />} />
+          <Route path="/ops/health" element={<OpsPage />} />
           <Route path="*" element={<div />} />
         </Route>
       </Route>

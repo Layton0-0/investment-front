@@ -39,3 +39,8 @@ export function getNews(params: {
   return apiFetch<NewsItemPageResponseDto>(`/api/v1/news${suffix}`, { method: "GET" });
 }
 
+/** 뉴스·공시 수집 즉시 실행 (DART·SEC EDGAR 등). */
+export function collectNews(): Promise<{ message?: string }> {
+  return apiFetch<{ message?: string }>("/api/v1/news/collect", { method: "POST" });
+}
+

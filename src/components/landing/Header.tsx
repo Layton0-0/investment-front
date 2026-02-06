@@ -37,7 +37,7 @@ export function Header() {
               <Link to="/login">로그인</Link>
             </Button>
             <Button variant="hero" asChild>
-              <Link to="/login">시작하기</Link>
+              <Link to="/signup">시작하기</Link>
             </Button>
           </div>
 
@@ -78,7 +78,7 @@ export function Header() {
                   <Link to="/login" onClick={() => setMobileMenuOpen(false)}>로그인</Link>
                 </Button>
                 <Button variant="hero" asChild>
-                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>시작하기</Link>
+                  <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>시작하기</Link>
                 </Button>
               </div>
             </nav>

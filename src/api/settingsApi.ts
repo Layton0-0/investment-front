@@ -72,3 +72,14 @@ export function updateSettingsAccounts(request: SettingsAccountsUpdateRequestDto
   });
 }
 
+/** 계좌별 거래 설정 저장 (자동투자 ON/OFF, 비율, 최대투자금 등). */
+export function updateSetting(
+  accountNo: string,
+  body: TradingSettingDto
+): Promise<TradingSettingDto> {
+  return apiFetch<TradingSettingDto>(
+    `/api/v1/settings/${encodeURIComponent(accountNo)}`,
+    { method: "PUT", body: JSON.stringify(body) }
+  );
+}
+

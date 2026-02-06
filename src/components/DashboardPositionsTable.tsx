@@ -5,9 +5,10 @@ import type { AccountPositionDto } from "@/api/accountApi";
 export interface DashboardPositionsTableProps {
   positions: AccountPositionDto[];
   maxRows?: number;
+  title?: string;
 }
 
-export function DashboardPositionsTable({ positions, maxRows = 5 }: DashboardPositionsTableProps) {
+export function DashboardPositionsTable({ positions, maxRows = 5, title = "보유 잔고 (Top 5)" }: DashboardPositionsTableProps) {
   const slice = positions.slice(0, maxRows);
   const rows = slice.map((p) => [
     `${p.name || p.symbol}`,
@@ -18,7 +19,7 @@ export function DashboardPositionsTable({ positions, maxRows = 5 }: DashboardPos
   ]);
 
   return (
-    <Card title="보유 잔고 (Top 5)">
+    <Card title={title}>
       <DataTable
         headers={["종목", "수량", "평균단가", "현재가", "수익률"]}
         rows={rows}

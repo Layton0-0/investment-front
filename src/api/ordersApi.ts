@@ -39,3 +39,23 @@ export function cancelOrder(orderId: string, accountNo: string) {
   );
 }
 
+/** 수동 주문 요청 (매수/매도). */
+export interface OrderRequestDto {
+  accountNo: string;
+  symbol: string;
+  orderType: OrderType;
+  quantity: number;
+  price: number | string;
+  market?: string; // KR | US
+}
+
+export function placeOrder(request: OrderRequestDto): Promise<OrderResponseDto> {
+  return apiFetch<OrderResponseDto>("/api/v1/orders", {
+    method: "POST",
+    body: JSON.stringify({
+      ...request,
+      price: typeof request.price === "number" ? request.price : Number(request.price)
+    })
+  });
+}
+

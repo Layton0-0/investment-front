@@ -61,6 +61,18 @@ export function DashboardAccountCard({
             {pipelineText}
           </span>
         </div>
+        {isActive && !autoTradeOn && (
+          <p className="col-span-2 text-sm mt-1 text-muted-foreground">
+            자동매매를 켜면 로보가 대신 매매합니다.{" "}
+            <button
+              type="button"
+              onClick={() => onNavigateDetail(`/settings?serverType=${serverType}`)}
+              className="underline text-accent hover:no-underline cursor-pointer"
+            >
+              설정으로 가기
+            </button>
+          </p>
+        )}
         {isActive && (
           <p className="col-span-2 text-sm mt-1">
             <button

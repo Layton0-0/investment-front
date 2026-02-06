@@ -17,6 +17,15 @@ export interface UseDashboardDataResult {
   real: MainAccountResponseDto | null;
   virtualAssets: AccountAssetDto | null;
   realAssets: AccountAssetDto | null;
+  virtualPositions: AccountPositionDto[];
+  realPositions: AccountPositionDto[];
+  virtualRecentOrders: OrderResponseDto[];
+  realRecentOrders: OrderResponseDto[];
+  virtualPipelineSummary: PipelineSummaryDto | null;
+  realPipelineSummary: PipelineSummaryDto | null;
+  virtualTradingSetting: TradingSettingDto | null;
+  realTradingSetting: TradingSettingDto | null;
+  /** 활성 탭(serverType) 기준 포지션·주문·파이프라인·설정 (호환용) */
   positions: AccountPositionDto[];
   recentOrders: OrderResponseDto[];
   pipelineSummary: PipelineSummaryDto | null;
@@ -34,10 +43,14 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
   const [real, setReal] = useState<MainAccountResponseDto | null>(null);
   const [virtualAssets, setVirtualAssets] = useState<AccountAssetDto | null>(null);
   const [realAssets, setRealAssets] = useState<AccountAssetDto | null>(null);
-  const [positions, setPositions] = useState<AccountPositionDto[]>([]);
-  const [recentOrders, setRecentOrders] = useState<OrderResponseDto[]>([]);
-  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
-  const [tradingSetting, setTradingSetting] = useState<TradingSettingDto | null>(null);
+  const [virtualPositions, setVirtualPositions] = useState<AccountPositionDto[]>([]);
+  const [realPositions, setRealPositions] = useState<AccountPositionDto[]>([]);
+  const [virtualRecentOrders, setVirtualRecentOrders] = useState<OrderResponseDto[]>([]);
+  const [realRecentOrders, setRealRecentOrders] = useState<OrderResponseDto[]>([]);
+  const [virtualPipelineSummary, setVirtualPipelineSummary] = useState<PipelineSummaryDto | null>(null);
+  const [realPipelineSummary, setRealPipelineSummary] = useState<PipelineSummaryDto | null>(null);
+  const [virtualTradingSetting, setVirtualTradingSetting] = useState<TradingSettingDto | null>(null);
+  const [realTradingSetting, setRealTradingSetting] = useState<TradingSettingDto | null>(null);
   const [mainAccountsLoaded, setMainAccountsLoaded] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
@@ -71,41 +84,91 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
 
   useEffect(() => {
     if (!mainAccountsLoaded) return;
-    const st = Number(serverType) === 1 ? "1" : "0";
-    const main = st === "1" ? virtual : real;
-    const accountNo = main?.accountNo;
-    if (!accountNo) {
+
+    const virtualAccountNo = virtual?.accountNo;
+    const realAccountNo = real?.accountNo;
+
+    if (!virtualAccountNo && !realAccountNo) {
       setLoading(false);
-      if (st === "1") setVirtualAssets(null);
-      else setRealAssets(null);
-      setPositions([]);
-      setRecentOrders([]);
-      setPipelineSummary(null);
-      setTradingSetting(null);
+      setVirtualAssets(null);
+      setRealAssets(null);
+      setVirtualPositions([]);
+      setRealPositions([]);
+      setVirtualRecentOrders([]);
+      setRealRecentOrders([]);
+      setVirtualPipelineSummary(null);
+      setRealPipelineSummary(null);
+      setVirtualTradingSetting(null);
+      setRealTradingSetting(null);
       return;
     }
 
     let mounted = true;
     setLoading(true);
+    setError(null);
+
+    const loadVirtual = virtualAccountNo
+      ? Promise.all([
+          getAccountAssets(virtualAccountNo),
+          getPositions(virtualAccountNo),
+          getOrders(virtualAccountNo),
+          getPipelineSummary(virtualAccountNo),
+          getSettingByAccountNo(virtualAccountNo)
+        ]).then(([assets, pos, orders, pipeline, setting]) => ({
+          assets,
+          positions: pos ?? [],
+          recentOrders: (orders ?? []).slice(0, 10),
+          pipelineSummary: pipeline,
+          tradingSetting: setting
+        }))
+      : Promise.resolve(null);
+
+    const loadReal = realAccountNo
+      ? Promise.all([
+          getAccountAssets(realAccountNo),
+          getPositions(realAccountNo),
+          getOrders(realAccountNo),
+          getPipelineSummary(realAccountNo),
+          getSettingByAccountNo(realAccountNo)
+        ]).then(([assets, pos, orders, pipeline, setting]) => ({
+          assets,
+          positions: pos ?? [],
+          recentOrders: (orders ?? []).slice(0, 10),
+          pipelineSummary: pipeline,
+          tradingSetting: setting
+        }))
+      : Promise.resolve(null);
+
     (async () => {
       try {
-        const [assets, pos, orders, pipeline, setting] = await Promise.all([
-          getAccountAssets(accountNo),
-          getPositions(accountNo),
-          getOrders(accountNo),
-          getPipelineSummary(accountNo),
-          getSettingByAccountNo(accountNo)
-        ]);
+        const [virtualData, realData] = await Promise.all([loadVirtual, loadReal]);
         if (!mounted) return;
-        if (st === "1") {
-          setVirtualAssets(assets);
+        if (virtualData) {
+          setVirtualAssets(virtualData.assets);
+          setVirtualPositions(virtualData.positions);
+          setVirtualRecentOrders(virtualData.recentOrders);
+          setVirtualPipelineSummary(virtualData.pipelineSummary);
+          setVirtualTradingSetting(virtualData.tradingSetting);
         } else {
-          setRealAssets(assets);
+          setVirtualAssets(null);
+          setVirtualPositions([]);
+          setVirtualRecentOrders([]);
+          setVirtualPipelineSummary(null);
+          setVirtualTradingSetting(null);
         }
-        setPositions(pos ?? []);
-        setRecentOrders((orders ?? []).slice(0, 10));
-        setPipelineSummary(pipeline);
-        setTradingSetting(setting);
+        if (realData) {
+          setRealAssets(realData.assets);
+          setRealPositions(realData.positions);
+          setRealRecentOrders(realData.recentOrders);
+          setRealPipelineSummary(realData.pipelineSummary);
+          setRealTradingSetting(realData.tradingSetting);
+        } else {
+          setRealAssets(null);
+          setRealPositions([]);
+          setRealRecentOrders([]);
+          setRealPipelineSummary(null);
+          setRealTradingSetting(null);
+        }
       } catch (e: unknown) {
         if (!mounted) return;
         setError(getDisplayErrorMessage(e, { assets: true }));
@@ -116,13 +179,27 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     return () => {
       mounted = false;
     };
-  }, [mainAccountsLoaded, serverType, virtual, real, refetchTrigger]);
+  }, [mainAccountsLoaded, virtual?.accountNo, real?.accountNo, refetchTrigger]);
+
+  const isVirtual = Number(serverType) === 1;
+  const positions = isVirtual ? virtualPositions : realPositions;
+  const recentOrders = isVirtual ? virtualRecentOrders : realRecentOrders;
+  const pipelineSummary = isVirtual ? virtualPipelineSummary : realPipelineSummary;
+  const tradingSetting = isVirtual ? virtualTradingSetting : realTradingSetting;
 
   return {
     virtual,
     real,
     virtualAssets,
     realAssets,
+    virtualPositions,
+    realPositions,
+    virtualRecentOrders,
+    realRecentOrders,
+    virtualPipelineSummary,
+    realPipelineSummary,
+    virtualTradingSetting,
+    realTradingSetting,
     positions,
     recentOrders,
     pipelineSummary,

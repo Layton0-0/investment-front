@@ -19,10 +19,14 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
     real,
     virtualAssets,
     realAssets,
-    positions,
-    recentOrders,
-    pipelineSummary,
-    tradingSetting,
+    virtualPositions,
+    realPositions,
+    virtualRecentOrders,
+    realRecentOrders,
+    virtualPipelineSummary,
+    realPipelineSummary,
+    virtualTradingSetting,
+    realTradingSetting,
     loading,
     error
   } = useDashboardData(serverType);
@@ -64,6 +68,7 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
 
   return (
     <div className="space-y-6">
+      <p className="text-muted-foreground">내 자산·자동투자 상태를 한눈에 확인하세요.</p>
       {loading && <Guardrail message="대시보드 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
       <DashboardSummaryCards onNavigate={onNavigate} />
@@ -73,33 +78,29 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
           stats={statsVirtual}
           serverType={1}
           isActive={serverType === 1}
-          tradingSetting={tradingSetting}
-          pipelineSummary={pipelineSummary}
+          tradingSetting={virtualTradingSetting}
+          pipelineSummary={virtualPipelineSummary}
           onNavigateDetail={onNavigate}
-          emptyMessage={
-            virtualAssets == null && serverType !== 1
-              ? "위 탭에서 모의계좌를 선택하면 데이터를 불러옵니다."
-              : undefined
-          }
+          emptyMessage={virtualAssets == null ? "모의계좌 데이터가 없습니다." : undefined}
         />
         <DashboardAccountCard
           title="실계좌 요약 (Real)"
           stats={statsReal}
           serverType={0}
           isActive={serverType === 0}
-          tradingSetting={tradingSetting}
-          pipelineSummary={pipelineSummary}
+          tradingSetting={realTradingSetting}
+          pipelineSummary={realPipelineSummary}
           onNavigateDetail={onNavigate}
-          emptyMessage={
-            realAssets == null && serverType !== 0
-              ? "위 탭에서 실계좌를 선택하면 데이터를 불러옵니다."
-              : undefined
-          }
+          emptyMessage={realAssets == null ? "실계좌 데이터가 없습니다." : undefined}
         />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DashboardPositionsTable positions={positions} />
-        <DashboardOrdersTable orders={recentOrders} />
+        <DashboardPositionsTable title="모의계좌 보유 종목" positions={virtualPositions} />
+        <DashboardPositionsTable title="실계좌 보유 종목" positions={realPositions} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DashboardOrdersTable title="모의계좌 최근 주문" orders={virtualRecentOrders} />
+        <DashboardOrdersTable title="실계좌 최근 주문" orders={realRecentOrders} />
       </div>
       <Guardrail
         message="현재 서버는 Dry-Run 모드입니다. 실제 주문은 서버 설정(PIPELINE_AUTO_EXECUTE)이 필요합니다."

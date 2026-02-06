@@ -5,9 +5,10 @@ import type { OrderResponseDto } from "@/api/ordersApi";
 export interface DashboardOrdersTableProps {
   orders: OrderResponseDto[];
   maxRows?: number;
+  title?: string;
 }
 
-export function DashboardOrdersTable({ orders, maxRows = 5 }: DashboardOrdersTableProps) {
+export function DashboardOrdersTable({ orders, maxRows = 5, title = "최근 주문 현황" }: DashboardOrdersTableProps) {
   const slice = orders.slice(0, maxRows);
   const rows = slice.map((o) => [
     String(o.orderTime ?? "-"),
@@ -18,7 +19,7 @@ export function DashboardOrdersTable({ orders, maxRows = 5 }: DashboardOrdersTab
   ]);
 
   return (
-    <Card title="최근 주문 현황">
+    <Card title={title}>
       <DataTable
         headers={["시간", "종목", "구분", "가격", "상태"]}
         rows={rows}

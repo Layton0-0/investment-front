@@ -30,9 +30,9 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6"
           >
-            AI가 관리하는
+            나 대신 투자해주는
             <br />
-            <span className="text-gradient">스마트 자산관리</span>
+            <span className="text-gradient">고수익 로보어드바이저</span>
           </motion.h1>
 
           <motion.p
@@ -41,9 +41,8 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
           >
-            한국과 미국 주식, 채권을 AI 알고리즘이 분석하여
-            자동으로 포트폴리오를 최적화합니다.
-            전문가 수준의 투자를 누구나 쉽게 시작하세요.
+            사람 개입 없이 퀀트 엔진이 국내·미국 주식을 자동 매매합니다.
+            설정만 하면 로보가 대신 투자합니다.
           </motion.p>
 
           <motion.div
@@ -54,7 +53,7 @@ export function HeroSection() {
           >
             <Button variant="hero" size="xl" asChild>
               <Link to="/signup" className="flex items-center gap-2">
-                무료로 시작하기
+                시작하기
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>

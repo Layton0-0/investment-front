@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
@@ -12,18 +13,28 @@ type SignalWithMarket = SignalScoreDto & { market: string };
 
 export const AutoInvest = () => {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryState | null>(null);
   const [signals, setSignalsState] = useState<SignalWithMarket[]>([]);
+  const [noAccount, setNoAccount] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       setError(null);
+      setNoAccount(false);
       try {
         const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
+        if (!main?.accountNo) {
+          if (mounted) {
+            setNoAccount(true);
+            setLoading(false);
+          }
+          return;
+        }
         const accountNo = main.accountNo;
 
         const [s, krSignals, usSignals] = await Promise.all([
@@ -62,10 +73,38 @@ export const AutoInvest = () => {
     };
   }, [auth.serverType]);
 
+  const allocationReady = summary?.allocationSummary && summary.allocationSummary !== "준비 중";
+
+  if (noAccount && !loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+        <h2 className="text-xl font-bold text-foreground">계좌를 연결해주세요</h2>
+        <p className="max-w-md text-muted-foreground">
+          자동매매를 켜면 파이프라인이 실행됩니다. 설정에서 계좌 연결 후 자동투자를 켜주세요.
+        </p>
+        <Button onClick={() => navigate(`/settings?serverType=${auth.serverType}`)}>설정으로 가기</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <p className="text-muted-foreground">4단계 파이프라인(유니버스→시그널→자금관리→매매) 현황입니다.</p>
       {loading && <Guardrail message="자동투자 현황 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
+      {!allocationReady && summary && !loading && (
+        <Guardrail
+          message="자동매매를 켜면 파이프라인이 실행됩니다. 설정에서 자동투자를 켜주세요."
+          type="warning"
+        />
+      )}
+      {!allocationReady && summary && !loading && (
+        <div className="flex justify-start">
+          <Button variant="secondary" onClick={() => navigate(`/settings?serverType=${auth.serverType}`)}>
+            설정으로 가기
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card title="01. 유니버스">
           <div className="text-center py-4">

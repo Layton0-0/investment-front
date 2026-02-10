@@ -41,6 +41,7 @@ export interface AccountVerifyResponseDto {
 export interface MyPageResponseDto {
   userId: string;
   username: string;
+  role?: string;
   brokerType?: string;
   accountNo?: string;
   serverType?: string;

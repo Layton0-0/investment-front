@@ -11,7 +11,6 @@ import {
   Newspaper,
   PieChart,
   Zap,
-  Calendar,
   BarChart3,
   Settings,
   LogOut,
@@ -38,7 +37,6 @@ const baseGroups: MenuGroup[] = [
   {
     title: "System",
     items: [
-      { label: "스케줄 현황", path: "/batch", id: "batch", icon: Calendar },
       { label: "백테스트", path: "/backtest", id: "backtest", icon: BarChart3 },
       { label: "설정", path: "/settings", id: "settings", icon: Settings }
     ]
@@ -62,7 +60,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const groups = auth.role === "Ops" ? [...baseGroups, opsGroup] : baseGroups;
+  const groups = auth.role === "Admin" ? [...baseGroups, opsGroup] : baseGroups;
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -96,7 +94,7 @@ export function AppShell() {
             <span className="text-xl font-bold text-sidebar-foreground">Investment Choi</span>
           </button>
           <div className="mt-3">
-            <Badge status={auth.role === "Ops" ? "executed" : "neutral"}>{auth.role}</Badge>
+            <Badge status={auth.role === "Admin" ? "executed" : "neutral"}>{auth.role}</Badge>
           </div>
         </div>
 

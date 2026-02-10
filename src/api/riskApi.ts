@@ -18,6 +18,14 @@ export interface RiskSummaryDto {
   riskGateAllowsNewBuy: boolean;
   riskGateSizeMultiplier?: number;
   accounts: RiskAccountSummaryDto[];
+  /** 계좌 합산 현재 평가액 (노출 합계) */
+  totalCurrentValue?: number;
+  /** 계좌 중 최대 MDD (0~1) */
+  maxMddPct?: number;
+  /** 1일 VaR 95% (%, 포트폴리오 대비 손실 가능 비율) */
+  var95Pct?: number;
+  /** 1일 CVaR 95% (%, Expected Shortfall) */
+  cvar95Pct?: number;
 }
 
 /** 리스크 한도 설정 (GET /api/v1/risk/limits) */

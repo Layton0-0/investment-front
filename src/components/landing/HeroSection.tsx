@@ -30,8 +30,7 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6"
           >
-            나 대신 투자해주는
-            <br />
+            나 대신 투자해주는{" "}
             <span className="text-gradient">고수익 로보어드바이저</span>
           </motion.h1>
 

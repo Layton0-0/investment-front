@@ -67,7 +67,7 @@ export function MyPage() {
         <div className="space-y-2 text-[15px] text-[#333d4b]">
           <div className="flex justify-between">
             <span className="text-[#8b95a1] font-semibold">Role</span>
-            <span className="font-bold">{auth.role}</span>
+            <span className="font-bold">{data?.role ?? auth.role}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#8b95a1] font-semibold">Server Type</span>

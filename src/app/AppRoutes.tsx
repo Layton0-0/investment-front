@@ -7,7 +7,6 @@ import StrategyPage from "@/pages/app/StrategyPage";
 import NewsPage from "@/pages/app/NewsPage";
 import PortfolioPage from "@/pages/app/PortfolioPage";
 import OrdersPage from "@/pages/app/OrdersPage";
-import BatchPage from "@/pages/app/BatchPage";
 import BacktestPage from "@/pages/app/BacktestPage";
 import SettingsPage from "@/pages/app/SettingsPage";
 
@@ -50,7 +49,7 @@ export function AppRoutes() {
           <Route path="/news" element={<NewsPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/batch" element={<BatchPage />} />
+          <Route path="/batch" element={<Navigate to="/ops/data" replace />} />
           <Route path="/backtest" element={<BacktestPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/mypage" element={<MyPage />} />

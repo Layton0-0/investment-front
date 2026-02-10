@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { getMyPage, logout as apiLogout } from "@/api/authApi";
 import { setUnauthorizedHandler } from "@/api/http";
 
-export type Role = "User" | "Ops";
+export type Role = "User" | "Admin";
 export type ServerType = 0 | 1; // 1: Virtual, 0: Real
 
 export interface AuthState {
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((res) => {
         setUserId(res.userId);
         setUsername(res.username);
+        setRole(res.role === "Admin" ? "Admin" : "User");
         setIsLoggedIn(true);
       })
       .catch(() => {

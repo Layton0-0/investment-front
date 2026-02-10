@@ -78,7 +78,7 @@ export const AutoInvest = () => {
   if (noAccount && !loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <h2 className="text-xl font-bold text-foreground">계좌를 연결해주세요</h2>
+        <h2 className="text-xl font-bold text-foreground">설정에서 계좌를 연결해주세요</h2>
         <p className="max-w-md text-muted-foreground">
           자동매매를 켜면 파이프라인이 실행됩니다. 설정에서 계좌 연결 후 자동투자를 켜주세요.
         </p>

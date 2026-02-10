@@ -33,7 +33,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       const res = await loginApi({ username: userId.trim(), password });
-      const role: Role = res.role === "Ops" ? "Ops" : "User";
+      const role: Role = res.role === "Admin" ? "Admin" : "User";
       auth.login({ role, userId: res.userId, username: res.username });
       navigate("/dashboard");
     } catch {

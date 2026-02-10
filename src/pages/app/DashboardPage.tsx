@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const linkTo = (path: string) => `${path}?serverType=${serverType === "real" ? "0" : "1"}`;
   const onNavigate = (path: string) => navigate(linkTo(path));
 
-  const isOps = auth.role === "Ops";
+  const isAdmin = auth.role === "Admin";
   const isAutoTradeOn = true; // TODO: derive from tradingSetting when available
 
   return (
@@ -55,7 +55,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {isOps && (
+      {isAdmin && (
         <Card className="border-destructive/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">

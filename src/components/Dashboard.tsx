@@ -57,11 +57,11 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center text-2xl text-muted-foreground">?</div>
-        <h2 className="text-xl font-bold text-foreground">등록된 계좌가 없습니다</h2>
+        <h2 className="text-xl font-bold text-foreground">설정에서 계좌를 연결해주세요</h2>
         <p className="max-w-md text-muted-foreground">
           투자를 시작하려면 설정 메뉴에서 {serverType === 1 ? "모의계좌" : "실계좌"} API 연동을 완료해주세요.
         </p>
-        <Button onClick={() => onNavigate("/settings")}>계좌 설정하러 가기</Button>
+        <Button onClick={() => onNavigate(`/settings?serverType=${serverType}`)}>설정으로 가기</Button>
       </div>
     );
   }

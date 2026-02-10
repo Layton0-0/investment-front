@@ -36,7 +36,6 @@ const userMenuItems: MenuItem[] = [
   { icon: Newspaper, label: "뉴스·이벤트", path: "/news" },
   { icon: Briefcase, label: "포트폴리오", path: "/portfolio" },
   { icon: ClipboardList, label: "주문·체결", path: "/orders" },
-  { icon: Calendar, label: "스케줄 현황", path: "/batch" },
   { icon: FlaskConical, label: "백테스트", path: "/backtest" },
   { icon: Settings, label: "설정", path: "/settings" },
   { icon: FileText, label: "연말 세금·리포트", path: "/report/tax" },

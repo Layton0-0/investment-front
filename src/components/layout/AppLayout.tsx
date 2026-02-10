@@ -6,14 +6,14 @@ import { useAuth } from "@/app/AuthContext";
 
 export function AppLayout() {
   const auth = useAuth();
-  const isOps = auth.role === "Ops";
+  const isAdmin = auth.role === "Admin";
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
 
       <div className="flex flex-1 min-h-0">
-        <AppMenu isOps={isOps} />
+        <AppMenu isOps={isAdmin} />
 
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden min-w-0">
           <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/50">

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto } from "@/api/opsApi";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -10,80 +11,33 @@ import {
   type RiskLimitsDto,
   type RiskHistoryItemDto,
 } from "@/api/riskApi";
+import { useAuth } from "@/app/AuthContext";
 
 export const OpsDashboard = ({ subPage }: { subPage: string }) => {
   const renderContent = () => {
     switch (subPage) {
-      case 'data':
-        return (
-          <div className="space-y-4">
-            <Card title="데이터 파이프라인 현황">
-              <DataTable 
-                headers={['Source', 'Type', 'Last Sync', 'Status', 'Latency']}
-                rows={[
-                  ['KRX', 'Quotes', '0.5s ago', 'ACTIVE', '12ms'],
-                  ['Yahoo Finance', 'Quotes', '2.1s ago', 'ACTIVE', '450ms'],
-                  ['NewsAPI', 'News', '5m ago', 'ACTIVE', '1.2s'],
-                  ['OpenAI', 'Sentiment', '12m ago', 'IDLE', '-'],
-                ]}
-              />
-            </Card>
-          </div>
-        );
+      case "data":
+        return <DataPipelineView />;
       case 'alerts':
-        return (
-          <div className="space-y-4">
-            <Card title="시스템 알림 내역">
-              <DataTable 
-                headers={['Time', 'Level', 'Component', 'Message']}
-                rows={[
-                  ['15:45:11', 'WARNING', 'RiskGate', 'Daily loss limit approached (85%)'],
-                  ['15:30:00', 'INFO', 'Scheduler', 'US Market opening batch finished'],
-                  ['14:20:01', 'ERROR', 'Execution', 'Order failed for AAPL: Rate limit'],
-                ]}
-              />
-            </Card>
-          </div>
-        );
+        return <AlertsView />;
       case 'risk':
         return <RiskView />;
       case 'health':
         return <HealthView />;
       case 'model':
-        return (
-          <Card title="AI 모델 및 예측 현황">
-            <DataTable 
-              headers={['Model ID', 'Type', 'Target', 'Accuracy', 'Status']}
-              rows={[
-                ['M-KR-V1', 'XGBoost', 'KOSPI200', '68%', 'ACTIVE'],
-                ['M-US-V2', 'LSTM', 'NASDAQ100', '72%', 'ACTIVE'],
-                ['R-ETF-01', 'RL', 'Multi-Asset', '64%', 'TRAINING'],
-              ]}
-            />
-          </Card>
-        );
+        return <ModelView />;
       case 'audit':
-        return (
-          <Card title="시스템 감사 로그">
-            <DataTable 
-              headers={['Timestamp', 'User', 'Action', 'IP Address', 'Result']}
-              rows={[
-                ['2024-02-04 15:50', 'admin', 'SETTING_CHANGE', '121.1.2.3', 'SUCCESS'],
-                ['2024-02-04 15:48', 'user1', 'MANUAL_ORDER', '182.4.5.6', 'SUCCESS'],
-                ['2024-02-04 15:45', 'system', 'AUTO_EXECUTE', '-', 'SUCCESS'],
-              ]}
-            />
-          </Card>
-        );
+        return <AuditView />;
       default:
         return <div>Select an Ops page</div>;
     }
   };
 
+  const dataPipelineLabel = subPage === "data" ? "데이터 파이프라인" : `Ops: ${subPage.toUpperCase()}`;
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-        <h2 className="text-lg font-bold uppercase tracking-tight">Ops: {subPage.toUpperCase()}</h2>
+        <h2 className="text-lg font-bold uppercase tracking-tight">{dataPipelineLabel}</h2>
         <div className="flex gap-2">
           <Badge status="active">MASTER NODE: ALIVE</Badge>
           <Badge status="pending">SLAVE NODE: SYNCING</Badge>
@@ -214,6 +168,30 @@ const RiskView = () => {
                 : "-"}
             </div>
           </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">총 평가액(노출)</div>
+            <div className="text-lg font-mono">
+              {summary?.totalCurrentValue != null ? formatNumber(summary.totalCurrentValue) : "-"}
+            </div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">최대 MDD</div>
+            <div className="text-lg font-mono">
+              {summary?.maxMddPct != null ? formatPct(Number(summary.maxMddPct) * 100) : "-"}
+            </div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">VaR (95%)</div>
+            <div className="text-lg font-mono">
+              {summary?.var95Pct != null ? formatPct(Number(summary.var95Pct)) : "-"}
+            </div>
+          </div>
+          <div className="p-4 border border-[#f2f4f6]">
+            <div className="text-[10px] font-bold text-[#8b95a1]">CVaR (95%)</div>
+            <div className="text-lg font-mono">
+              {summary?.cvar95Pct != null ? formatPct(Number(summary.cvar95Pct)) : "-"}
+            </div>
+          </div>
         </div>
         {summaryRows.length > 0 && (
           <DataTable
@@ -241,23 +219,127 @@ const RiskView = () => {
   );
 };
 
-const HealthView = () => (
-  <div className="space-y-4">
-    <div className="grid grid-cols-3 gap-4">
-      <HealthCard label="CPU" value="12%" status="GOOD" />
-      <HealthCard label="RAM" value="4.2GB" status="GOOD" />
-      <HealthCard label="Latency" value="15ms" status="GOOD" />
+/** 모델/예측 상태: GET /api/v1/ops/model/status 연동 */
+const ModelView = () => {
+  const [data, setData] = useState<OpsModelStatusDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getModelStatus()
+      .then((res) => {
+        if (mounted) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "모델 상태 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="info" message="모델/예측 상태 로딩 중…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="error" message={error} />
+      </div>
+    );
+  }
+
+  const rows: string[][] = [
+    ["모델 사용 가능", data?.modelReady ? "예" : "아니오"],
+    ["서비스 URL", data?.serviceUrl ?? "-"],
+    ["마지막 체크", data?.lastCheckAt ? formatDateTimeForPipeline(data.lastCheckAt) : "-"],
+  ];
+  if (data?.version != null && data.version !== "") {
+    rows.push(["버전", data.version]);
+  }
+  if (data?.failureRateRecent != null) {
+    rows.push(["최근 실패율", `${(Number(data.failureRateRecent) * 100).toFixed(2)}%`]);
+  }
+
+  return (
+    <Card title="AI 모델 및 예측 현황">
+      <DataTable
+        headers={["항목", "값"]}
+        rows={rows}
+      />
+    </Card>
+  );
+};
+
+/** 시스템 헬스: GET /api/v1/ops/health 연동 */
+const HealthView = () => {
+  const [data, setData] = useState<OpsHealthDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getHealth()
+      .then((res) => {
+        if (mounted) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "시스템 헬스 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="info" message="시스템 헬스 로딩 중…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="error" message={error} />
+      </div>
+    );
+  }
+
+  const dbStatus = data?.db === "UP" ? "GOOD" : data?.db === "DOWN" ? "ERROR" : "pending";
+  const redisStatus = data?.redis === "UP" ? "GOOD" : data?.redis === "DOWN" ? "ERROR" : "pending";
+  const predStatus = data?.predictionService === "UP" ? "GOOD" : data?.predictionService === "DOWN" ? "ERROR" : "pending";
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <HealthCard label="DB" value={data?.db ?? "-"} status={dbStatus} />
+        <HealthCard label="Redis" value={data?.redis ?? "-"} status={redisStatus} />
+        <HealthCard label="예측 서비스" value={data?.predictionService ?? "-"} status={predStatus} />
+      </div>
+      {data?.lastCheckedAt && (
+        <div className="text-sm text-gray-500">
+          마지막 체크: {formatDateTimeForPipeline(data.lastCheckedAt)}
+        </div>
+      )}
     </div>
-    <div className="mt-4 border border-gray-200 p-4 font-mono text-xs bg-gray-50 overflow-y-auto max-h-60">
-      [2024-02-04 15:46:01] System health heartbeat: OK<br/>
-      [2024-02-04 15:45:01] Database connected: latency 2ms<br/>
-      [2024-02-04 15:44:01] Redis cache: HIT 94%<br/>
-      [2024-02-04 15:43:01] External API: KRX UP, Yahoo UP<br/>
-      [2024-02-04 15:42:01] Memory usage stable at 4.2GB<br/>
-      [2024-02-04 15:41:01] All microservices reporting healthy status
-    </div>
-  </div>
-);
+  );
+};
 
 interface HealthCardProps {
   label: string;
@@ -274,6 +356,214 @@ const HealthCard = ({ label, value, status }: HealthCardProps) => (
     </div>
   </div>
 );
+
+function formatDateTimeForPipeline(iso: string | undefined): string {
+  if (!iso) return "-";
+  try {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
+}
+
+/** 감사 로그: GET /api/v1/ops/audit 연동 */
+const AuditView = () => {
+  const [data, setData] = useState<AuditLogListResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [eventType, setEventType] = useState<string>("");
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getAuditLogs({ page, size: 20, eventType: eventType || undefined })
+      .then((res) => {
+        if (mounted) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "감사 로그 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [page, eventType]);
+
+  const rows =
+    data?.items?.map((a) => [
+      a.occurredAt ? formatDateTimeForPipeline(a.occurredAt) : "-",
+      a.eventType ?? "-",
+      a.userIdMasked ?? "-",
+      a.accountNoMasked ?? "-",
+      (a.summary ?? "-").slice(0, 120) + ((a.summary?.length ?? 0) > 120 ? "…" : ""),
+      a.result ?? "-",
+    ]) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card title="시스템 감사 로그">
+        <div className="mb-2 flex gap-2 items-center">
+          <label className="text-sm text-gray-600">이벤트 유형:</label>
+          <select
+            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            value={eventType}
+            onChange={(e) => {
+              setEventType(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">전체</option>
+            <option value="SETTING_CHANGE">설정 변경</option>
+            <option value="MANUAL_TRIGGER">수동 트리거</option>
+            <option value="REAL_ACCOUNT_GUARD_BLOCKED">실계좌 가드 차단</option>
+          </select>
+        </div>
+        {loading && <Guardrail type="info" message="감사 로그 로딩 중…" />}
+        {error && <Guardrail type="error" message={error} />}
+        {!loading && !error && (
+          <DataTable
+            headers={["일시", "이벤트 유형", "사용자", "계좌", "요약", "결과"]}
+            rows={rows.length ? rows : [["이력 없음", "-", "-", "-", "-", "-"]]}
+          />
+        )}
+        {!loading && data && (data.totalPages ?? 0) > 1 && (
+          <div className="mt-2 text-sm text-gray-500">
+            페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+/** 알림센터: 알림 이력 API 연동 */
+const AlertsView = () => {
+  const [data, setData] = useState<AlertListResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [level, setLevel] = useState<string>("");
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getAlerts({ page, size: 20, level: level || undefined })
+      .then((res) => {
+        if (mounted) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "알림 이력 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [page, level]);
+
+  const rows =
+    data?.items?.map((a) => [
+      a.occurredAt ? formatDateTimeForPipeline(a.occurredAt) : "-",
+      a.level ?? "-",
+      a.component ?? "-",
+      (a.message ?? "-").slice(0, 200) + ((a.message?.length ?? 0) > 200 ? "…" : ""),
+    ]) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card title="시스템 알림 내역">
+        <div className="mb-2 flex gap-2 items-center">
+          <label className="text-sm text-gray-600">레벨 필터:</label>
+          <select
+            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            value={level}
+            onChange={(e) => {
+              setLevel(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">전체</option>
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+        </div>
+        {loading && <Guardrail type="info" message="알림 이력 로딩 중…" />}
+        {error && <Guardrail type="error" message={error} />}
+        {!loading && !error && (
+          <DataTable
+            headers={["일시", "Level", "Component", "Message"]}
+            rows={rows.length ? rows : [["이력 없음", "-", "-", "-"]]}
+          />
+        )}
+        {!loading && data && (data.totalPages ?? 0) > 1 && (
+          <div className="mt-2 text-sm text-gray-500">
+            페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+/** 데이터 파이프라인 페이지: 원천별 수집 상태 + 스케줄 현황(배치 작업·지금 실행) */
+const DataPipelineView = () => {
+  const auth = useAuth();
+  const [pipeline, setPipeline] = useState<DataPipelineStatusDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getDataPipelineStatus()
+      .then((data) => {
+        if (mounted) setPipeline(data);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "데이터 파이프라인 상태 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const sourceRows =
+    pipeline?.sources?.map((s) => [
+      s.displayName ?? s.sourceId ?? "-",
+      formatDateTimeForPipeline(s.lastRunTime),
+      s.lastBaselineDate ?? "-",
+      s.status ?? "-",
+      s.errorSummary ?? "-",
+    ]) ?? [];
+
+  return (
+    <div className="space-y-6">
+      <Card title="데이터 파이프라인 현황 (원천별 수집 상태)">
+        {loading && <Guardrail type="info" message="원천별 상태 로딩 중…" />}
+        {error && <Guardrail type="error" message={error} />}
+        {!loading && !error && (
+          <DataTable
+            headers={["원천", "마지막 실행", "최근 기준일", "상태", "오류 요약"]}
+            rows={sourceRows.length ? sourceRows : [["데이터 없음", "-", "-", "-", "-"]]}
+          />
+        )}
+      </Card>
+      <Batch role={auth.role} />
+    </div>
+  );
+};
 
 const TRIGGER_PATH_PREFIX = "/api/v1/trigger/";
 
@@ -293,7 +583,7 @@ function formatDateTime(iso: string | undefined): string {
 }
 
 export const Batch = ({ role }: { role: string }) => {
-  const isOps = role === "Ops";
+  const isAdmin = role === "Admin";
   const [message, setMessage] = useState<string | null>(null);
   const [jobs, setJobs] = useState<BatchJobDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,7 +620,7 @@ export const Batch = ({ role }: { role: string }) => {
   const rows = jobs.map((job) => {
     const triggerSuffix = triggerPathToSuffix(job.triggerPath);
     const action =
-      isOps && triggerSuffix ? (
+      isAdmin && triggerSuffix ? (
         <Button variant="ghost" className="text-[10px] p-1" onClick={() => run(triggerSuffix)}>
           지금 실행
         </Button>
@@ -357,7 +647,7 @@ export const Batch = ({ role }: { role: string }) => {
           rows={rows}
         />
       </Card>
-      {!isOps && (
+      {!isAdmin && (
         <p className="text-[10px] text-gray-400">※ "지금 실행" 권한은 운영자(Ops)에게만 부여됩니다.</p>
       )}
     </div>

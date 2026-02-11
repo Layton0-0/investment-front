@@ -9,11 +9,25 @@ import {
   getPortfolioByDate,
   getLatestPortfolios,
   generatePortfolio,
+  getRebalanceSuggestions,
   type TradingPortfolioDto,
-  type TradingPortfolioItemDto
+  type TradingPortfolioItemDto,
+  type RebalanceSuggestionsDto
 } from "@/api/tradingPortfolioApi";
+import { getSectorAnalysis, getCorrelationAnalysis, type SectorAnalysisResponseDto, type CorrelationAnalysisResponseDto } from "@/api/analysisApi";
+import { getPortfolioRiskMetrics, type PortfolioRiskMetricsDto } from "@/api/riskApi";
 import type { OrderResponseDto } from "@/api/ordersApi";
 import { getSafeHref } from "@/utils/secureUrl";
+import { analyze, type AnalysisResponseDto } from "@/api/analysisApi";
+import { getCurrentPrice, type CurrentPriceDto } from "@/api/marketDataApi";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export const News = () => {
   const [market, setMarket] = useState("");
@@ -103,7 +117,168 @@ export const News = () => {
   );
 };
 
+function AnalysisModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [symbol, setSymbol] = useState("");
+  const [periodDays, setPeriodDays] = useState(14);
+  const [currentPriceData, setCurrentPriceData] = useState<CurrentPriceDto | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResponseDto | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLoadCurrentPrice = async () => {
+    if (!symbol.trim()) return;
+    setError(null);
+    setLoadingPrice(true);
+    try {
+      const data = await getCurrentPrice(symbol.trim());
+      setCurrentPriceData(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "현재가 조회에 실패했습니다.");
+      setCurrentPriceData(null);
+    } finally {
+      setLoadingPrice(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!symbol.trim()) return;
+    setError(null);
+    setLoadingAnalysis(true);
+    setAnalysisResult(null);
+    try {
+      const result = await analyze({
+        symbol: symbol.trim(),
+        periodDays,
+      });
+      setAnalysisResult(result);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  const reset = () => {
+    setSymbol("");
+    setPeriodDays(14);
+    setCurrentPriceData(null);
+    setAnalysisResult(null);
+    setError(null);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) reset();
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>종목 분석</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {error && <Guardrail type="error" message={error} />}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="analysis-symbol">종목 코드</Label>
+              <Input
+                id="analysis-symbol"
+                value={symbol}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSymbol(e.target.value)}
+                placeholder="005930 / AAPL"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="analysis-period">분석 기간(일)</Label>
+              <Input
+                id="analysis-period"
+                type="number"
+                min={1}
+                max={365}
+                value={periodDays}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setPeriodDays(Number(e.target.value) || 14)
+                }
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={loadingPrice || !symbol.trim()}
+              onClick={handleLoadCurrentPrice}
+            >
+              {loadingPrice ? "조회 중…" : "현재가 조회"}
+            </Button>
+            <Button
+              type="button"
+              disabled={loadingAnalysis || !symbol.trim()}
+              onClick={handleAnalyze}
+            >
+              {loadingAnalysis ? "분석 중…" : "AI 분석"}
+            </Button>
+          </div>
+          {currentPriceData && (
+            <div className="text-sm rounded-lg bg-muted/50 p-3 space-y-1">
+              <p>
+                <span className="text-muted-foreground">현재가</span>{" "}
+                {currentPriceData.currentPrice != null
+                  ? Number(currentPriceData.currentPrice).toLocaleString()
+                  : "-"}
+                {currentPriceData.changeRate != null && (
+                  <span className="ml-2 text-muted-foreground">
+                    ({Number(currentPriceData.changeRate) >= 0 ? "+" : ""}
+                    {Number(currentPriceData.changeRate).toFixed(2)}%)
+                  </span>
+                )}
+              </p>
+              {currentPriceData.name && (
+                <p className="text-muted-foreground">{currentPriceData.name}</p>
+              )}
+            </div>
+          )}
+          {analysisResult && (
+            <div className="text-sm rounded-lg border p-3 space-y-2">
+              <p>
+                <span className="font-medium">추천</span> {analysisResult.recommendation} (신뢰도:{" "}
+                {(Number(analysisResult.confidence) * 100).toFixed(0)}%)
+              </p>
+              <p>
+                <span className="text-muted-foreground">목표가</span>{" "}
+                {Number(analysisResult.targetPrice).toLocaleString()} /{" "}
+                <span className="text-muted-foreground">현재가</span>{" "}
+                {Number(analysisResult.currentPrice).toLocaleString()} /{" "}
+                <span className="text-muted-foreground">예상 수익률</span>{" "}
+                {Number(analysisResult.expectedReturn).toFixed(2)}%
+              </p>
+              {analysisResult.reasoning && (
+                <p className="text-muted-foreground border-t pt-2">{analysisResult.reasoning}</p>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            닫기
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export const Portfolio = () => {
+  const auth = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<TradingPortfolioDto | null>(null);
@@ -111,6 +286,13 @@ export const Portfolio = () => {
   const [selectedDate, setSelectedDate] = useState("");
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [mainAccountNo, setMainAccountNo] = useState<string | null>(null);
+  const [sectorData, setSectorData] = useState<SectorAnalysisResponseDto | null>(null);
+  const [riskMetrics, setRiskMetrics] = useState<PortfolioRiskMetricsDto | null>(null);
+  const [rebalanceSuggestions, setRebalanceSuggestions] = useState<RebalanceSuggestionsDto | null>(null);
+  const [correlationData, setCorrelationData] = useState<CorrelationAnalysisResponseDto | null>(null);
+  const [loadingExtra, setLoadingExtra] = useState(false);
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -128,6 +310,41 @@ export const Portfolio = () => {
   useEffect(() => {
     loadToday();
   }, [loadToday]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const st = auth.serverType === 1 ? "1" : "0";
+      try {
+        const main = await getMainAccount(st);
+        const accNo = main?.accountNo ?? null;
+        if (cancelled) return;
+        setMainAccountNo(accNo);
+        if (!accNo) {
+          setSectorData(null);
+          setRiskMetrics(null);
+          setRebalanceSuggestions(null);
+          setCorrelationData(null);
+          return;
+        }
+        setLoadingExtra(true);
+        const [sector, risk, rebal, corr] = await Promise.all([
+          getSectorAnalysis({ accountNo: accNo }).catch(() => null),
+          getPortfolioRiskMetrics(accNo).catch(() => null),
+          getRebalanceSuggestions(accNo, "US").catch(() => null),
+          getCorrelationAnalysis({ accountNo: accNo }).catch(() => null)
+        ]);
+        if (cancelled) return;
+        setSectorData(sector ?? null);
+        setRiskMetrics(risk ?? null);
+        setRebalanceSuggestions(rebal ?? null);
+        setCorrelationData(corr ?? null);
+      } finally {
+        if (!cancelled) setLoadingExtra(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [auth.serverType]);
 
   const loadByDate = async () => {
     if (!selectedDate) return;
@@ -178,7 +395,9 @@ export const Portfolio = () => {
         <Button variant="secondary" disabled={loading} onClick={loadByDate}>날짜별 조회</Button>
         <Button variant="secondary" disabled={loading} onClick={loadLatest}>최신 목록</Button>
         <Button variant="secondary" disabled={generating} onClick={handleGenerate}>수동 생성</Button>
+        <Button variant="secondary" onClick={() => setAnalysisModalOpen(true)}>종목 분석</Button>
       </div>
+      <AnalysisModal open={analysisModalOpen} onOpenChange={setAnalysisModalOpen} />
       {generateMessage && <p className="text-sm text-muted-foreground">{generateMessage}</p>}
       {loading && <Guardrail type="info" message="포트폴리오 로딩 중…" />}
       {error && <Guardrail type="error" message={error} />}
@@ -209,6 +428,78 @@ export const Portfolio = () => {
           {portfolio?.riskManagementStrategy || "N/A"}
         </div>
       </Card>
+
+      {mainAccountNo && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card title="섹터 분석">
+            {loadingExtra ? (
+              <p className="text-sm text-muted-foreground">로딩 중…</p>
+            ) : sectorData?.sectors?.length ? (
+              <DataTable
+                headers={["섹터", "비중(%)", "평가액", "수익률(%)"]}
+                rows={(sectorData.sectors ?? []).map((s) => [
+                  String(s.sectorName ?? s.sectorCode ?? "-"),
+                  s.weightPct != null ? Number(s.weightPct).toFixed(2) : "-",
+                  s.notionalValue != null ? Number(s.notionalValue).toLocaleString() : "-",
+                  s.returnPct != null ? Number(s.returnPct).toFixed(2) : "-"
+                ])}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">보유 종목이 없거나 섹터 데이터가 없습니다.</p>
+            )}
+          </Card>
+          <Card title="포트폴리오 리스크 메트릭">
+            {loadingExtra ? (
+              <p className="text-sm text-muted-foreground">로딩 중…</p>
+            ) : riskMetrics ? (
+              <div className="text-sm space-y-2">
+                <p><span className="text-muted-foreground">평가액</span> {riskMetrics.currentValue != null ? Number(riskMetrics.currentValue).toLocaleString() : "-"}</p>
+                <p><span className="text-muted-foreground">MDD</span> {riskMetrics.mddPct != null ? `${(Number(riskMetrics.mddPct) * 100).toFixed(2)}%` : "-"}</p>
+                <p><span className="text-muted-foreground">VaR 95%</span> {riskMetrics.var95Pct != null ? `${Number(riskMetrics.var95Pct).toFixed(2)}%` : "-"}</p>
+                <p><span className="text-muted-foreground">CVaR 95%</span> {riskMetrics.cvar95Pct != null ? `${Number(riskMetrics.cvar95Pct).toFixed(2)}%` : "-"}</p>
+                {(riskMetrics.sharpeRatio != null || riskMetrics.sortinoRatio != null) && (
+                  <p><span className="text-muted-foreground">Sharpe</span> {riskMetrics.sharpeRatio != null ? Number(riskMetrics.sharpeRatio).toFixed(2) : "-"} / <span className="text-muted-foreground">Sortino</span> {riskMetrics.sortinoRatio != null ? Number(riskMetrics.sortinoRatio).toFixed(2) : "-"}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">계좌 리스크 메트릭을 불러올 수 없습니다.</p>
+            )}
+          </Card>
+          <Card title="리밸런싱 제안 (US)">
+            {loadingExtra ? (
+              <p className="text-sm text-muted-foreground">로딩 중…</p>
+            ) : rebalanceSuggestions?.items?.length ? (
+              <DataTable
+                headers={["종목", "방향", "금액"]}
+                rows={(rebalanceSuggestions.items ?? []).map((i) => [
+                  String(i.symbol ?? "-"),
+                  String(i.side ?? "-"),
+                  i.notional != null ? Number(i.notional).toLocaleString() : "-"
+                ])}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">제안이 없거나 US 시장만 지원됩니다.</p>
+            )}
+          </Card>
+          <Card title="상관관계 (수익률)">
+            {loadingExtra ? (
+              <p className="text-sm text-muted-foreground">로딩 중…</p>
+            ) : correlationData?.symbols?.length && correlationData?.matrix?.length ? (
+              <div className="overflow-x-auto">
+                <DataTable
+                  headers={["", ...(correlationData.symbols ?? [])]}
+                  rows={(correlationData.matrix ?? []).map((row, i) => [
+                    String(correlationData.symbols?.[i] ?? "-"),
+                    ...(row.map((v) => (typeof v === "number" ? v.toFixed(2) : String(v))))
+                  ])}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">보유 종목 2개 이상·20일 이상 데이터가 필요합니다.</p>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
@@ -324,7 +615,7 @@ export const Orders = () => {
 
       <Card title="주문 및 체결 내역">
         <DataTable
-          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "관리"]}
+          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "시그널 유형", "청산 규칙", "관리"]}
           rows={items.map((o) => [
             String(o.orderTime ?? "-"),
             String(o.symbol ?? "-"),
@@ -332,6 +623,8 @@ export const Orders = () => {
             String(o.price ?? "-"),
             String(o.quantity ?? "-"),
             String(o.status ?? "-"),
+            String(o.signalType ?? "-"),
+            String(o.exitRuleType ?? "-"),
             o.status === "PENDING" && accountNo ? (
               <Button
                 variant="ghost"

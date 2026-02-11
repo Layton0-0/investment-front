@@ -27,6 +27,7 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
     realPipelineSummary,
     virtualTradingSetting,
     realTradingSetting,
+    performanceSummary,
     loading,
     error
   } = useDashboardData(serverType);
@@ -72,6 +73,34 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
       {loading && <Guardrail message="대시보드 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
       <DashboardSummaryCards onNavigate={onNavigate} />
+      {performanceSummary && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {performanceSummary.totalCurrentValue != null && (
+            <div className="p-4 bg-card rounded-xl border border-border">
+              <p className="text-xs text-muted-foreground">총 평가액</p>
+              <p className="text-lg font-semibold">₩{Number(performanceSummary.totalCurrentValue).toLocaleString("ko-KR")}</p>
+            </div>
+          )}
+          {performanceSummary.maxMddPct != null && (
+            <div className="p-4 bg-card rounded-xl border border-border">
+              <p className="text-xs text-muted-foreground">최대 낙폭 (MDD)</p>
+              <p className="text-lg font-semibold">{(Number(performanceSummary.maxMddPct) * 100).toFixed(1)}%</p>
+            </div>
+          )}
+          {performanceSummary.sharpeRatio != null && (
+            <div className="p-4 bg-card rounded-xl border border-border">
+              <p className="text-xs text-muted-foreground">Sharpe 비율</p>
+              <p className="text-lg font-semibold">{Number(performanceSummary.sharpeRatio).toFixed(2)}</p>
+            </div>
+          )}
+          {performanceSummary.var95Pct != null && (
+            <div className="p-4 bg-card rounded-xl border border-border">
+              <p className="text-xs text-muted-foreground">1일 VaR 95%</p>
+              <p className="text-lg font-semibold">{Number(performanceSummary.var95Pct).toFixed(2)}%</p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardAccountCard
           title="모의계좌 요약 (Virtual)"

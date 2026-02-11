@@ -26,6 +26,21 @@ export interface RiskSummaryDto {
   var95Pct?: number;
   /** 1일 CVaR 95% (%, Expected Shortfall) */
   cvar95Pct?: number;
+  /** Sharpe 비율 (연율화). 데이터 없으면 null */
+  sharpeRatio?: number | null;
+  /** Sortino 비율 (연율화). 데이터 없으면 null */
+  sortinoRatio?: number | null;
+}
+
+/** 포트폴리오(단일 계좌) 리스크 메트릭 (GET /api/v1/risk/portfolio-metrics) */
+export interface PortfolioRiskMetricsDto {
+  accountNoMasked?: string;
+  currentValue?: number;
+  mddPct?: number;
+  var95Pct?: number;
+  cvar95Pct?: number;
+  sharpeRatio?: number | null;
+  sortinoRatio?: number | null;
 }
 
 /** 리스크 한도 설정 (GET /api/v1/risk/limits) */
@@ -62,6 +77,13 @@ export function getRiskHistory(params?: {
   const qs = search.toString();
   return apiFetch<RiskHistoryItemDto[]>(
     `/api/v1/risk/history${qs ? `?${qs}` : ""}`,
+    { method: "GET" }
+  );
+}
+
+export function getPortfolioRiskMetrics(accountNo: string): Promise<PortfolioRiskMetricsDto> {
+  return apiFetch<PortfolioRiskMetricsDto>(
+    `/api/v1/risk/portfolio-metrics?accountNo=${encodeURIComponent(accountNo)}`,
     { method: "GET" }
   );
 }

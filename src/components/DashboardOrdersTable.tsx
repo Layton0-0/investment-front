@@ -15,13 +15,15 @@ export function DashboardOrdersTable({ orders, maxRows = 5, title = "최근 주�
     String(o.symbol ?? "-"),
     String(o.orderType ?? "-"),
     String(o.price ?? "-"),
-    String(o.status ?? "-")
+    String(o.status ?? "-"),
+    String(o.signalType ?? "-"),
+    String(o.exitRuleType ?? "-")
   ]);
 
   return (
     <Card title={title}>
       <DataTable
-        headers={["시간", "종목", "구분", "가격", "상태"]}
+        headers={["시간", "종목", "구분", "가격", "상태", "시그널 유형", "청산 규칙"]}
         rows={rows}
         getRowKey={(_, i) => `order-${slice[i]?.orderId ?? i}`}
       />

@@ -5,8 +5,27 @@ import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
 import { getPipelineSummary } from "@/api/pipelineApi";
 import { getSignals, type SignalScoreDto } from "@/api/signalsApi";
-import { activateStrategy, getStrategies, stopStrategy, type StrategyDto } from "@/api/strategyApi";
+import {
+  activateStrategy,
+  getStrategies,
+  getStrategy,
+  stopStrategy,
+  createOrUpdateStrategy,
+  updateStrategyStatus,
+  isStrategyEnabled,
+  type StrategyDto,
+  type StrategyStatus,
+} from "@/api/strategyApi";
 import type { PipelineSummaryDto } from "@/api/pipelineApi";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 type SummaryState = Partial<PipelineSummaryDto> & { accountNo?: string };
 type SignalWithMarket = SignalScoreDto & { market: string };
@@ -153,9 +172,18 @@ export const AutoInvest = () => {
       </Card>
 
       <Card title="현재 파이프라인 포지션">
-        <DataTable 
-          headers={['종목', '진입일', '수량', '진입가', '현재가', '상태']}
-          rows={[]}
+        <DataTable
+          headers={["종목", "시장", "진입일", "수량", "진입가", "시그널 유형", "청산 규칙"]}
+          rows={(summary?.openPositionList ?? []).map((p) => [
+            String(p.symbol ?? "-"),
+            String(p.market ?? "-"),
+            String(p.entryDt ?? "-"),
+            String(p.quantity ?? "-"),
+            typeof p.entryPrice === "number" ? String(p.entryPrice) : String(p.entryPrice ?? "-"),
+            String(p.signalType ?? "-"),
+            String(p.exitRuleType ?? "-")
+          ])}
+          getRowKey={(_, i) => `pos-${(summary?.openPositionList ?? [])[i]?.positionId ?? i}`}
         />
       </Card>
 
@@ -170,13 +198,269 @@ export const Strategy = ({ market }: { market: 'kr' | 'us' }) => (
 
 const apiMarketFromRoute = (m: "kr" | "us"): "KR" | "US" => (m === "kr" ? "KR" : "US");
 
+const STRATEGY_TYPES: StrategyDto["strategyType"][] = ["SHORT_TERM", "MEDIUM_TERM", "LONG_TERM"];
+const STRATEGY_STATUSES: StrategyStatus[] = ["ACTIVE", "STOPPED", "PAUSED"];
+
+function StrategyDetailModal({
+  open,
+  onOpenChange,
+  data,
+  loading,
+  strategyType,
+  onStatusChange,
+  onEdit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: StrategyDto | null;
+  loading: boolean;
+  strategyType: string | null;
+  onStatusChange: (status: StrategyStatus) => void;
+  onEdit: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>전략 상세 {strategyType ?? ""}</DialogTitle>
+        </DialogHeader>
+        {loading && <p className="text-sm text-muted-foreground">로딩 중…</p>}
+        {!loading && data && (
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">계좌</span>
+              <span>{data.accountNo}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">시장</span>
+              <span>{data.market ?? "-"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">상태</span>
+              <select
+                value={data.status}
+                onChange={(e) => onStatusChange(e.target.value as StrategyStatus)}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                {STRATEGY_STATUSES.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">최대 투자금</span>
+              <span>
+                {data.maxInvestmentAmount != null
+                  ? Number(data.maxInvestmentAmount).toLocaleString()
+                  : "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">성공률</span>
+              <span>
+                {data.successRate != null ? `${Number(data.successRate).toFixed(1)}%` : "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">마지막 실행</span>
+              <span>{data.lastExecutedAt ? new Date(data.lastExecutedAt).toLocaleString() : "-"}</span>
+            </div>
+          </div>
+        )}
+        {!loading && !data && strategyType && (
+          <p className="text-sm text-muted-foreground">전략을 불러올 수 없습니다.</p>
+        )}
+        <DialogFooter>
+          {data && (
+            <Button variant="secondary" onClick={onEdit}>
+              편집
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            닫기
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StrategyFormModal({
+  open,
+  onOpenChange,
+  mode,
+  initial,
+  apiMarket,
+  submitting,
+  setSubmitting,
+  error,
+  setError,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: "create" | "edit";
+  initial: Partial<StrategyDto>;
+  apiMarket: "KR" | "US";
+  submitting: boolean;
+  setSubmitting: (v: boolean) => void;
+  error: string | null;
+  setError: (v: string | null) => void;
+  onSuccess: () => void;
+}) {
+  const [accountNo, setAccountNo] = useState(initial.accountNo ?? "");
+  const [market, setMarket] = useState(initial.market ?? apiMarket);
+  const [strategyType, setStrategyType] = useState<StrategyDto["strategyType"]>(
+    (initial.strategyType as StrategyDto["strategyType"]) ?? "SHORT_TERM"
+  );
+  const [status, setStatus] = useState<StrategyStatus>(initial.status ?? "STOPPED");
+  const [maxInvestmentAmount, setMaxInvestmentAmount] = useState(
+    initial.maxInvestmentAmount != null ? String(initial.maxInvestmentAmount) : ""
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setAccountNo(initial.accountNo ?? "");
+    setMarket(initial.market ?? apiMarket);
+    setStrategyType((initial.strategyType as StrategyDto["strategyType"]) ?? "SHORT_TERM");
+    setStatus((initial.status as StrategyStatus) ?? "STOPPED");
+    setMaxInvestmentAmount(
+      initial.maxInvestmentAmount != null ? String(initial.maxInvestmentAmount) : ""
+    );
+  }, [open, initial.accountNo, initial.market, initial.strategyType, initial.status, initial.maxInvestmentAmount, apiMarket]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const payload: StrategyDto = {
+        accountNo,
+        market: market || apiMarket,
+        strategyType,
+        status,
+        maxInvestmentAmount: maxInvestmentAmount ? Number(maxInvestmentAmount) : undefined,
+      };
+      await createOrUpdateStrategy(payload);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{mode === "create" ? "전략 추가" : "전략 편집"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <Guardrail message={error} type="error" />}
+          <div className="space-y-2">
+            <Label htmlFor="strategy-accountNo">계좌번호</Label>
+            <Input
+              id="strategy-accountNo"
+              value={accountNo}
+              onChange={(e) => setAccountNo(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="strategy-market">시장</Label>
+            <select
+              id="strategy-market"
+              value={market}
+              onChange={(e) => setMarket(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="KR">KR</option>
+              <option value="US">US</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="strategy-type">전략 타입</Label>
+            <select
+              id="strategy-type"
+              value={strategyType}
+              onChange={(e) => setStrategyType(e.target.value as StrategyDto["strategyType"])}
+              className="w-full border rounded px-3 py-2"
+            >
+              {STRATEGY_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="strategy-status">상태</Label>
+            <select
+              id="strategy-status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as StrategyStatus)}
+              className="w-full border rounded px-3 py-2"
+            >
+              {STRATEGY_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="strategy-maxAmount">최대 투자금</Label>
+            <Input
+              id="strategy-maxAmount"
+              type="number"
+              min={0}
+              value={maxInvestmentAmount}
+              onChange={(e) => setMaxInvestmentAmount(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              취소
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "저장 중…" : "저장"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
   const auth = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<StrategyDto[]>([]);
+  const [mainAccountNo, setMainAccountNo] = useState<string | null>(null);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedStrategyType, setSelectedStrategyType] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<StrategyDto | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [formInitial, setFormInitial] = useState<Partial<StrategyDto>>({});
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const apiMarket = apiMarketFromRoute(market);
+
+  const refetchList = async () => {
+    const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
+    if (!main) return;
+    const list = await getStrategies(main.accountNo, apiMarket);
+    setItems(list ?? []);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -186,6 +470,7 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
       try {
         const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
         if (!main || !mounted) return;
+        setMainAccountNo(main.accountNo);
         const list = await getStrategies(main.accountNo, apiMarket);
         if (!mounted) return;
         setItems(list ?? []);
@@ -205,16 +490,85 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
     const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
     if (!main) return;
     await activateStrategy(main.accountNo, strategyType, apiMarket);
-    const list = await getStrategies(main.accountNo, apiMarket);
-    setItems(list ?? []);
+    await refetchList();
   };
 
   const handleStop = async (strategyType: string) => {
     const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
     if (!main) return;
     await stopStrategy(main.accountNo, strategyType, apiMarket);
-    const list = await getStrategies(main.accountNo, apiMarket);
-    setItems(list ?? []);
+    await refetchList();
+  };
+
+  const openDetail = async (strategyType: string) => {
+    const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
+    if (!main) return;
+    setSelectedStrategyType(strategyType);
+    setDetailOpen(true);
+    setDetailData(null);
+    setDetailLoading(true);
+    try {
+      const d = await getStrategy(main.accountNo, strategyType, apiMarket);
+      setDetailData(d);
+    } catch {
+      setDetailData(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailOpen(false);
+    setSelectedStrategyType(null);
+    setDetailData(null);
+  };
+
+  const handleStatusChange = async (newStatus: StrategyStatus) => {
+    if (!mainAccountNo || !selectedStrategyType || !detailData) return;
+    try {
+      await updateStrategyStatus(
+        mainAccountNo,
+        selectedStrategyType,
+        { status: newStatus },
+        apiMarket
+      );
+      const d = await getStrategy(mainAccountNo, selectedStrategyType, apiMarket);
+      setDetailData(d);
+      await refetchList();
+    } catch {
+      // keep detail as is; optional: set a toast
+    }
+  };
+
+  const openCreate = () => {
+    setFormMode("create");
+    setFormInitial({
+      accountNo: mainAccountNo ?? "",
+      market: apiMarket,
+      strategyType: "SHORT_TERM",
+      status: "STOPPED",
+    });
+    setFormError(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (s: StrategyDto) => {
+    setFormMode("edit");
+    setFormInitial({
+      ...s,
+      accountNo: s.accountNo,
+      market: s.market ?? apiMarket,
+      strategyType: s.strategyType,
+      status: s.status,
+    });
+    setFormError(null);
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setFormInitial({});
+    setFormError(null);
   };
 
   return (
@@ -223,7 +577,12 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         <h2 className="text-lg font-bold uppercase">
           {market === "kr" ? "국내" : "미국"} 전략 목록
         </h2>
-        <Badge status="active">SYSTEM ACTIVE</Badge>
+        <div className="flex gap-2">
+          <Button variant="secondary" className="text-[12px] px-3 py-2" onClick={openCreate}>
+            전략 추가
+          </Button>
+          <Badge status="active">SYSTEM ACTIVE</Badge>
+        </div>
       </div>
       {loading && <Guardrail message="전략 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
@@ -231,23 +590,32 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         {items.map((s) => (
           <Card key={`${s.accountNo}-${s.strategyType}`} title={`전략 ${s.strategyType}`}>
             <div className="space-y-3">
-              <p className="text-xs text-[#8b95a1]">{s.description || "-"}</p>
+              <p className="text-xs text-[#8b95a1]">
+                {s.maxInvestmentAmount != null ? `최대 투자금: ${Number(s.maxInvestmentAmount).toLocaleString()}` : "-"}
+              </p>
               <div className="flex justify-between text-xs">
                 <span className="font-bold text-[#8b95a1] uppercase tracking-widest">Market</span>
                 <span>{s.market || apiMarket}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="font-bold text-[#8b95a1] uppercase tracking-widest">Status</span>
-                <Badge status={s.enabled ? "active" : "stopped"}>
-                  {s.enabled ? "ACTIVE" : "STOPPED"}
+                <Badge status={isStrategyEnabled(s) ? "active" : "stopped"}>
+                  {s.status}
                 </Badge>
               </div>
-              <div className="pt-2 border-t border-gray-100 flex gap-2">
+              <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  className="text-[12px] px-3 py-2"
+                  onClick={() => openDetail(s.strategyType)}
+                >
+                  상세
+                </Button>
                 <Button
                   variant="secondary"
                   className="text-[12px] px-3 py-2"
                   onClick={() => handleActivate(s.strategyType)}
-                  disabled={!!s.enabled}
+                  disabled={isStrategyEnabled(s)}
                 >
                   Activate
                 </Button>
@@ -255,15 +623,48 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
                   variant="danger"
                   className="text-[12px] px-3 py-2"
                   onClick={() => handleStop(s.strategyType)}
-                  disabled={!s.enabled}
+                  disabled={!isStrategyEnabled(s)}
                 >
                   Stop
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="text-[12px] px-3 py-2"
+                  onClick={() => openEdit(s)}
+                >
+                  편집
                 </Button>
               </div>
             </div>
           </Card>
         ))}
       </div>
+
+      <StrategyDetailModal
+        open={detailOpen}
+        onOpenChange={(open) => !open && closeDetail()}
+        data={detailData}
+        loading={detailLoading}
+        strategyType={selectedStrategyType}
+        onStatusChange={handleStatusChange}
+        onEdit={() => detailData && (closeDetail(), openEdit(detailData))}
+      />
+
+      <StrategyFormModal
+        open={formOpen}
+        onOpenChange={(open) => !open && closeForm()}
+        mode={formMode}
+        initial={formInitial}
+        apiMarket={apiMarket}
+        submitting={formSubmitting}
+        setSubmitting={setFormSubmitting}
+        error={formError}
+        setError={setFormError}
+        onSuccess={() => {
+          closeForm();
+          refetchList();
+        }}
+      />
     </div>
   );
 };

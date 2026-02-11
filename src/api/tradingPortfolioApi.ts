@@ -45,3 +45,25 @@ export function generatePortfolio(date?: string): Promise<TradingPortfolioDto> {
   });
 }
 
+/** 리밸런싱 제안 1건 */
+export interface RebalanceItemDto {
+  symbol?: string;
+  side?: string;
+  quantity?: number;
+  notional?: number;
+}
+
+/** 리밸런싱 제안 응답 (GET /api/v1/trading-portfolios/rebalance-suggestions) */
+export interface RebalanceSuggestionsDto {
+  market?: string;
+  totalValue?: number;
+  items?: RebalanceItemDto[];
+}
+
+export function getRebalanceSuggestions(accountNo: string, market = "US"): Promise<RebalanceSuggestionsDto> {
+  return apiFetch<RebalanceSuggestionsDto>(
+    `/api/v1/trading-portfolios/rebalance-suggestions?accountNo=${encodeURIComponent(accountNo)}&market=${encodeURIComponent(market)}`,
+    { method: "GET" }
+  );
+}
+

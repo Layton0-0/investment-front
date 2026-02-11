@@ -13,6 +13,10 @@ export interface OrderResponseDto {
   status: OrderStatus;
   orderTime: string;
   message?: string;
+  /** 거래 사유: 진입 시그널 유형 (파이프라인 매수 시) */
+  signalType?: string | null;
+  /** 거래 사유: 청산 규칙 유형 (파이프라인 매도 시) */
+  exitRuleType?: string | null;
 }
 
 /** 주문 목록 조회. 404 시 빈 배열 반환. */
@@ -27,6 +31,24 @@ export async function getOrders(
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       return [];
+    }
+    throw e;
+  }
+}
+
+/** 주문 단건 조회 (상세·재시도 시). */
+export async function getOrder(
+  orderId: string,
+  accountNo: string
+): Promise<OrderResponseDto | null> {
+  try {
+    return await apiFetch<OrderResponseDto>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}?accountNo=${encodeURIComponent(accountNo)}`,
+      { method: "GET" }
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      return null;
     }
     throw e;
   }

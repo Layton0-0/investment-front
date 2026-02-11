@@ -14,7 +14,12 @@ import {
   type SettingsAccountsUpdateRequestDto,
   type TradingSettingDto,
 } from "@/api/settingsApi";
-import { getMainAccount } from "@/api/userAccountsApi";
+import {
+  getMainAccount,
+  getAccounts,
+  setMainAccount,
+  type AccountListResponseDto,
+} from "@/api/userAccountsApi";
 import {
   runBacktest,
   runRoboBacktest,
@@ -64,6 +69,9 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
 
   const [mainMock, setMainMock] = useState<{ accountNo: string } | null>(null);
   const [mainReal, setMainReal] = useState<{ accountNo: string } | null>(null);
+  const [accountListVirtual, setAccountListVirtual] = useState<AccountListResponseDto | null>(null);
+  const [accountListReal, setAccountListReal] = useState<AccountListResponseDto | null>(null);
+  const [settingMainId, setSettingMainId] = useState<string | null>(null);
   const [tradingTabType, setTradingTabType] = useState<1 | 0>(1);
   const [tradingLoading, setTradingLoading] = useState(true);
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
@@ -79,14 +87,23 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
 
   const loadMainAccounts = useCallback(async () => {
     try {
-      const [mock, real] = await Promise.all([getMainAccount("1"), getMainAccount("0")]);
+      const [mock, real, list1, list0] = await Promise.all([
+        getMainAccount("1"),
+        getMainAccount("0"),
+        getAccounts("1"),
+        getAccounts("0"),
+      ]);
       setMainMock(mock?.accountNo ? { accountNo: mock.accountNo } : null);
       setMainReal(real?.accountNo ? { accountNo: real.accountNo } : null);
+      setAccountListVirtual(list1);
+      setAccountListReal(list0);
       if (mock?.accountNo && !real?.accountNo) setTradingTabType(1);
       else if (!mock?.accountNo && real?.accountNo) setTradingTabType(0);
     } catch {
       setMainMock(null);
       setMainReal(null);
+      setAccountListVirtual(null);
+      setAccountListReal(null);
     }
   }, []);
 
@@ -167,6 +184,21 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
       setSaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
       setSavingReal(false);
+    }
+  };
+
+  const handleSetMainAccount = async (accountId: string) => {
+    setSettingMainId(accountId);
+    setSaveError(null);
+    setInfo(null);
+    try {
+      await setMainAccount(accountId);
+      setInfo("메인 계좌로 설정되었습니다.");
+      await loadMainAccounts();
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "메인 계좌 설정에 실패했습니다.");
+    } finally {
+      setSettingMainId(null);
     }
   };
 
@@ -279,6 +311,66 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
         <TabsContent value="accounts" className="space-y-4 mt-4">
           {renderAccountCard("모의계좌", accountsData?.virtual, virtualForm, setVirtualForm, handleSaveVirtual, savingVirtual)}
           {renderAccountCard("실계좌", accountsData?.real, realForm, setRealForm, handleSaveReal, savingReal)}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">등록된 계좌</CardTitle>
+              <p className="text-sm text-muted-foreground">메인 계좌를 변경하면 대시보드·주문 시 해당 계좌가 사용됩니다.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">모의계좌</p>
+                {accountListVirtual?.accounts?.length ? (
+                  <ul className="space-y-2">
+                    {accountListVirtual.accounts.map((a) => (
+                      <li key={a.accountId} className="flex items-center justify-between rounded border p-2">
+                        <span className="text-sm">{a.accountNoMasked ?? a.accountId} {a.accountName ? `(${a.accountName})` : ""}</span>
+                        {a.isDefault ? (
+                          <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">메인</span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={settingMainId !== null}
+                            onClick={() => handleSetMainAccount(a.accountId)}
+                          >
+                            {settingMainId === a.accountId ? "설정 중…" : "메인으로 설정"}
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">등록된 모의계좌가 없습니다.</p>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">실계좌</p>
+                {accountListReal?.accounts?.length ? (
+                  <ul className="space-y-2">
+                    {accountListReal.accounts.map((a) => (
+                      <li key={a.accountId} className="flex items-center justify-between rounded border p-2">
+                        <span className="text-sm">{a.accountNoMasked ?? a.accountId} {a.accountName ? `(${a.accountName})` : ""}</span>
+                        {a.isDefault ? (
+                          <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">메인</span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={settingMainId !== null}
+                            onClick={() => handleSetMainAccount(a.accountId)}
+                          >
+                            {settingMainId === a.accountId ? "설정 중…" : "메인으로 설정"}
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">등록된 실계좌가 없습니다.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="trading" className="space-y-4 mt-4">

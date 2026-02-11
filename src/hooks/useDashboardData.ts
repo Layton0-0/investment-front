@@ -4,6 +4,7 @@ import { getAccountAssets, getPositions } from "@/api/accountApi";
 import { getOrders } from "@/api/ordersApi";
 import { getPipelineSummary } from "@/api/pipelineApi";
 import { getSettingByAccountNo } from "@/api/settingsApi";
+import { getPerformanceSummary } from "@/api/dashboardApi";
 import { getDisplayErrorMessage } from "@/api/errorMessages";
 import type { ServerType } from "@/types";
 import type { MainAccountResponseDto } from "@/api/userAccountsApi";
@@ -11,6 +12,7 @@ import type { AccountAssetDto, AccountPositionDto } from "@/api/accountApi";
 import type { OrderResponseDto } from "@/api/ordersApi";
 import type { PipelineSummaryDto } from "@/api/pipelineApi";
 import type { TradingSettingDto } from "@/api/settingsApi";
+import type { DashboardPerformanceSummaryDto } from "@/api/dashboardApi";
 
 export interface UseDashboardDataResult {
   virtual: MainAccountResponseDto | null;
@@ -30,6 +32,8 @@ export interface UseDashboardDataResult {
   recentOrders: OrderResponseDto[];
   pipelineSummary: PipelineSummaryDto | null;
   tradingSetting: TradingSettingDto | null;
+  /** 대시보드 성과 요약 (총 평가액·MDD·Sharpe 등) */
+  performanceSummary: DashboardPerformanceSummaryDto | null;
   loading: boolean;
   error: string | null;
   mainAccountsLoaded: boolean;
@@ -51,6 +55,7 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
   const [realPipelineSummary, setRealPipelineSummary] = useState<PipelineSummaryDto | null>(null);
   const [virtualTradingSetting, setVirtualTradingSetting] = useState<TradingSettingDto | null>(null);
   const [realTradingSetting, setRealTradingSetting] = useState<TradingSettingDto | null>(null);
+  const [performanceSummary, setPerformanceSummary] = useState<DashboardPerformanceSummaryDto | null>(null);
   const [mainAccountsLoaded, setMainAccountsLoaded] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
@@ -100,6 +105,7 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
       setRealPipelineSummary(null);
       setVirtualTradingSetting(null);
       setRealTradingSetting(null);
+      setPerformanceSummary(null);
       return;
     }
 
@@ -141,7 +147,11 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
 
     (async () => {
       try {
-        const [virtualData, realData] = await Promise.all([loadVirtual, loadReal]);
+        const [virtualData, realData, perf] = await Promise.all([
+          loadVirtual,
+          loadReal,
+          getPerformanceSummary(),
+        ]);
         if (!mounted) return;
         if (virtualData) {
           setVirtualAssets(virtualData.assets);
@@ -169,6 +179,7 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
           setRealPipelineSummary(null);
           setRealTradingSetting(null);
         }
+        setPerformanceSummary(perf);
       } catch (e: unknown) {
         if (!mounted) return;
         setError(getDisplayErrorMessage(e, { assets: true }));
@@ -204,6 +215,7 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     recentOrders,
     pipelineSummary,
     tradingSetting,
+    performanceSummary,
     loading,
     error,
     mainAccountsLoaded,

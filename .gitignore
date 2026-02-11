@@ -30,6 +30,10 @@ pnpm-debug.log*
 # Test and coverage
 coverage/
 
+# Playwright E2E
+playwright-report/
+test-results/
+
 # Vite / TypeScript cache and temp
 .vite/
 *.tsbuildinfo

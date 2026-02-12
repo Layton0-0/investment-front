@@ -60,6 +60,7 @@ export function AppRoutes() {
           <Route path="/ops/model" element={<OpsPage />} />
           <Route path="/ops/audit" element={<OpsPage />} />
           <Route path="/ops/health" element={<OpsPage />} />
+          <Route path="/ops/governance" element={<OpsPage />} />
           <Route path="*" element={<div />} />
         </Route>
       </Route>

@@ -8,7 +8,7 @@ export function OpsPage() {
     location.pathname === "/risk"
       ? "risk"
       : location.pathname.startsWith("/ops/")
-        ? (location.pathname.replace("/ops/", "") as "data" | "alerts" | "model" | "audit" | "health")
+        ? (location.pathname.replace("/ops/", "") as "data" | "alerts" | "model" | "audit" | "health" | "governance")
         : "data";
   return <OpsDashboard subPage={subPage} />;
 }

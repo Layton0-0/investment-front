@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
-import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto } from "@/api/opsApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto } from "@/api/opsApi";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -28,12 +28,23 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
         return <ModelView />;
       case 'audit':
         return <AuditView />;
+      case 'governance':
+        return <GovernanceView />;
       default:
         return <div>Select an Ops page</div>;
     }
   };
 
-  const dataPipelineLabel = subPage === "data" ? "데이터 파이프라인" : `Ops: ${subPage.toUpperCase()}`;
+  const subPageLabels: Record<string, string> = {
+    data: "데이터 파이프라인",
+    alerts: "알림센터",
+    risk: "리스크 리포트",
+    health: "시스템 헬스",
+    model: "모델/예측",
+    audit: "감사 로그",
+    governance: "전략 거버넌스",
+  };
+  const dataPipelineLabel = subPageLabels[subPage] ?? `Ops: ${subPage.toUpperCase()}`;
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center border-b border-gray-200 pb-2">
@@ -436,6 +447,112 @@ const AuditView = () => {
             페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
           </div>
         )}
+      </Card>
+    </div>
+  );
+};
+
+/** 전략 거버넌스: 검사 결과 이력·활성 halt·halt 해제 (GET results/halts, PUT clear) */
+const GovernanceView = () => {
+  const [results, setResults] = useState<GovernanceCheckResultDto[]>([]);
+  const [halts, setHalts] = useState<GovernanceHaltDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [limit] = useState(20);
+  const [clearing, setClearing] = useState<string | null>(null);
+
+  const fetchData = React.useCallback(() => {
+    setLoading(true);
+    setError(null);
+    Promise.all([getGovernanceResults({ limit }), getGovernanceHalts()])
+      .then(([r, h]) => {
+        setResults(r ?? []);
+        setHalts(h ?? []);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "전략 거버넌스 조회에 실패했습니다.");
+      })
+      .finally(() => setLoading(false));
+  }, [limit]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleClearHalt = (market: string, strategyType: string) => {
+    const key = `${market}/${strategyType}`;
+    setClearing(key);
+    clearGovernanceHalt(market, strategyType)
+      .then(() => fetchData())
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "halt 해제에 실패했습니다.");
+      })
+      .finally(() => setClearing(null));
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="info" message="전략 거버넌스 로딩 중…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="error" message={error} />
+      </div>
+    );
+  }
+
+  const resultRows =
+    results?.map((r) => [
+      formatDateTimeForPipeline(r.runAt),
+      r.market ?? "-",
+      r.strategyType ?? "-",
+      r.mddPct != null ? formatNumber(Number(r.mddPct)) : "-",
+      r.sharpeRatio != null ? formatNumber(Number(r.sharpeRatio)) : "-",
+      r.degraded ? "열화" : "정상",
+      r.startDate ?? "-",
+      r.endDate ?? "-",
+    ]) ?? [];
+
+  const haltRows: React.ReactNode[][] =
+    halts?.map((h) => {
+      const key = `${h.market ?? ""}/${h.strategyType ?? ""}`;
+      const clearBtn = (
+        <Button
+          variant="secondary"
+          className="text-xs py-1 px-2"
+          disabled={clearing !== null}
+          onClick={() => handleClearHalt(h.market ?? "", h.strategyType ?? "")}
+        >
+          {clearing === key ? "해제 중…" : "해제"}
+        </Button>
+      );
+      return [
+        h.market ?? "-",
+        h.strategyType ?? "-",
+        formatDateTimeForPipeline(h.haltedAt),
+        (h.reason ?? "-").slice(0, 80) + ((h.reason?.length ?? 0) > 80 ? "…" : ""),
+        clearBtn,
+      ];
+    }) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card title="전략 거버넌스 검사 결과 (최근 이력)">
+        <DataTable
+          headers={["실행 시각", "시장", "전략 유형", "MDD(%)", "Sharpe", "상태", "시작일", "종료일"]}
+          rows={resultRows.length ? resultRows : [["이력 없음", "-", "-", "-", "-", "-", "-", "-"]]}
+        />
+        <p className="mt-2 text-xs text-gray-500">최대 {limit}건 (RUN_AT 내림차순)</p>
+      </Card>
+      <Card title="활성 Halt (자동 매매 중단 중)">
+        <DataTable
+          headers={["시장", "전략 유형", "중단 시각", "사유", "조치"]}
+          rows={haltRows.length ? haltRows : [["없음", "-", "-", "-", "-"]]}
+        />
       </Card>
     </div>
   );

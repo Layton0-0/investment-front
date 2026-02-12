@@ -57,5 +57,20 @@ describe("routing", () => {
       expect(screen.getByText("연말 세금·리포트")).toBeInTheDocument();
     });
   });
+
+  it("shows ops governance at /ops/governance when authenticated as Admin", async () => {
+    mockGetMyPage.mockResolvedValue({ userId: "u1", username: "admin", role: "Admin" });
+    render(
+      <MemoryRouter initialEntries={["/ops/governance"]}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "전략 거버넌스" })).toBeInTheDocument();
+    });
+  });
 });
 

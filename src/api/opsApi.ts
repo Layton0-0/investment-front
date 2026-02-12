@@ -139,3 +139,61 @@ export interface OpsHealthDto {
 export function getHealth(): Promise<OpsHealthDto> {
   return apiFetch<OpsHealthDto>("/api/v1/ops/health", { method: "GET" });
 }
+
+/** 전략 거버넌스 검사 결과 한 건 (GET /api/v1/ops/governance/results) */
+export interface GovernanceCheckResultDto {
+  id?: number;
+  runAt?: string;
+  market?: string;
+  strategyType?: string;
+  mddPct?: number;
+  sharpeRatio?: number;
+  degraded?: boolean;
+  startDate?: string;
+  endDate?: string;
+  createdAt?: string;
+}
+
+/** 전략 거버넌스 halt 한 건 (GET /api/v1/ops/governance/halts) */
+export interface GovernanceHaltDto {
+  market?: string;
+  strategyType?: string;
+  haltedAt?: string;
+  reason?: string;
+}
+
+/**
+ * 전략 거버넌스 최근 검사 결과 조회.
+ * GET /api/v1/ops/governance/results (ADMIN 전용)
+ */
+export function getGovernanceResults(params?: { limit?: number }): Promise<GovernanceCheckResultDto[]> {
+  const limit = params?.limit != null ? Math.min(500, Math.max(1, params.limit)) : 20;
+  return apiFetch<GovernanceCheckResultDto[]>(
+    `/api/v1/ops/governance/results?limit=${limit}`,
+    { method: "GET" }
+  );
+}
+
+/**
+ * 전략 거버넌스 활성 halt 목록 조회.
+ * GET /api/v1/ops/governance/halts (ADMIN 전용)
+ */
+export function getGovernanceHalts(): Promise<GovernanceHaltDto[]> {
+  return apiFetch<GovernanceHaltDto[]>("/api/v1/ops/governance/halts", { method: "GET" });
+}
+
+/**
+ * 전략 거버넌스 halt 해제.
+ * PUT /api/v1/ops/governance/halts/{market}/{strategyType}/clear (ADMIN 전용)
+ */
+export function clearGovernanceHalt(
+  market: string,
+  strategyType: string,
+  clearedBy?: string
+): Promise<void> {
+  const body = clearedBy != null && clearedBy !== "" ? { clearedBy } : undefined;
+  return apiFetch<void>(
+    `/api/v1/ops/governance/halts/${encodeURIComponent(market)}/${encodeURIComponent(strategyType)}/clear`,
+    { method: "PUT", body: body != null ? JSON.stringify(body) : undefined }
+  );
+}

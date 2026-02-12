@@ -48,6 +48,7 @@ const opsMenuItems: MenuItem[] = [
   { icon: Activity, label: "모델/예측 상태", path: "/ops/model", opsOnly: true },
   { icon: History, label: "감사 로그", path: "/ops/audit", opsOnly: true },
   { icon: HeartPulse, label: "시스템 헬스", path: "/ops/health", opsOnly: true },
+  { icon: Shield, label: "전략 거버넌스", path: "/ops/governance", opsOnly: true },
 ];
 
 interface AppMenuProps {

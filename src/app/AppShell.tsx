@@ -51,7 +51,8 @@ const opsGroup: MenuGroup = {
     { label: "리스크 리포트", path: "/risk", id: "o-risk", icon: Shield },
     { label: "모델/예측", path: "/ops/model", id: "o-model", icon: TrendingUp },
     { label: "감사 로그", path: "/ops/audit", id: "o-audit", icon: Settings },
-    { label: "시스템 헬스", path: "/ops/health", id: "o-health", icon: Shield }
+    { label: "시스템 헬스", path: "/ops/health", id: "o-health", icon: Shield },
+    { label: "전략 거버넌스", path: "/ops/governance", id: "o-governance", icon: Shield }
   ]
 };
 

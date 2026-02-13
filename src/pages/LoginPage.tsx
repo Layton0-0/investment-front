@@ -56,7 +56,7 @@ export function LoginPage() {
             <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center">
               <Shield className="w-7 h-7 text-accent-foreground" />
             </div>
-            <span className="text-2xl font-bold text-primary-foreground">Investment Choi</span>
+            <span className="text-2xl font-bold text-primary-foreground">Pulsarve</span>
           </Link>
           <h1 className="text-4xl lg:text-5xl font-bold text-primary-foreground leading-tight mb-6">
             AI가 관리하는
@@ -90,7 +90,7 @@ export function LoginPage() {
           <div className="lg:hidden mb-8">
             <Link to="/" className="flex items-center gap-2 justify-center">
               <Logo className="w-10 h-10" />
-              <span className="text-xl font-bold text-foreground">Investment Choi</span>
+              <span className="text-xl font-bold text-foreground">Pulsarve</span>
             </Link>
           </div>
 

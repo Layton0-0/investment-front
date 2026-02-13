@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Shield, User, LogOut, Bell } from "lucide-react";
+import { Shield, User, LogOut, Bell, Menu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/app/AuthContext";
 import { useAccountType } from "@/hooks/useAccountType";
 
-export function AppHeader() {
+interface AppHeaderProps {
+  onOpenMobileMenu?: () => void;
+}
+
+export function AppHeader({ onOpenMobileMenu }: AppHeaderProps) {
   const navigate = useNavigate();
   const auth = useAuth();
   const { serverType } = useAccountType();
@@ -24,15 +28,27 @@ export function AppHeader() {
   };
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-      <Link to={dashboardPath} className="flex items-center gap-2">
+    <header className="h-14 sm:h-16 bg-card border-b border-border flex items-center justify-between px-4 sm:px-6 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {onOpenMobileMenu && (
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="lg:hidden flex-shrink-0 p-2 rounded-md hover:bg-muted min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="메뉴 열기"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <Link to={dashboardPath} className="flex items-center gap-2 min-w-0">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
           <Shield className="w-5 h-5 text-primary-foreground" />
         </div>
-        <span className="text-lg font-bold text-foreground">Investment Choi</span>
+        <span className="text-base sm:text-lg font-bold text-foreground truncate">Pulsarve</span>
       </Link>
+      </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
         <Button variant="ghost" size="icon" className="relative" aria-label="알림">
           <Bell className="w-5 h-5" />
         </Button>

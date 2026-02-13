@@ -6,7 +6,7 @@ import { Footer } from "@/components/landing/Footer";
 
 /**
  * Public landing page (smart-portfolio-pal design).
- * Brand: Investment Choi.
+ * Brand: Pulsarve.
  */
 export function IndexPage() {
   return (

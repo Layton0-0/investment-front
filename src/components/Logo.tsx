@@ -1,7 +1,7 @@
 import React from "react";
 
 /**
- * Investment Choi logo (Figma publish design).
+ * Pulsarve logo (Figma publish design).
  * Blue rounded rect with white chart line and green dot.
  */
 export function Logo({ className = "w-8 h-8" }: { className?: string }) {

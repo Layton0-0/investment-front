@@ -92,7 +92,7 @@ export function AppShell() {
             <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center flex-shrink-0">
               <Shield className="w-6 h-6 text-sidebar-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-sidebar-foreground">Investment Choi</span>
+            <span className="text-xl font-bold text-sidebar-foreground">Pulsarve</span>
           </button>
           <div className="mt-3">
             <Badge status={auth.role === "Admin" ? "executed" : "neutral"}>{auth.role}</Badge>
@@ -223,7 +223,7 @@ export function AppShell() {
         </div>
 
         <footer className="px-8 py-6 border-t border-border text-sm text-muted-foreground text-center">
-          © 2026 Investment Choi Auto-Trading Pipeline v4.0.0
+          © 2026 Pulsarve Auto-Trading Pipeline v4.0.0
         </footer>
       </main>
     </div>

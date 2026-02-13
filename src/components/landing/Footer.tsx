@@ -10,7 +10,7 @@ export function Footer() {
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
               <Logo className="w-10 h-10 text-primary-foreground" />
-              <span className="text-xl font-bold">Investment Choi</span>
+              <span className="text-xl font-bold">Pulsarve</span>
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
               AI 기반 로보어드바이저로
@@ -47,7 +47,7 @@ export function Footer() {
         <div className="border-t border-primary-foreground/20 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-primary-foreground/60">
-              © 2026 Investment Choi. All rights reserved.
+              © 2026 Pulsarve. All rights reserved.
             </p>
           </div>
           <p className="text-xs text-primary-foreground/40 mt-4 text-center md:text-left">

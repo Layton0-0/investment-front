@@ -6,7 +6,6 @@ import {
   Newspaper,
   Briefcase,
   ClipboardList,
-  Calendar,
   FlaskConical,
   Settings,
   FileText,
@@ -20,6 +19,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useAccountType } from "@/hooks/useAccountType";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -53,9 +58,72 @@ const opsMenuItems: MenuItem[] = [
 
 interface AppMenuProps {
   isOps?: boolean;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }
 
-export function AppMenu({ isOps = false }: AppMenuProps) {
+function MenuNavContent({
+  userMenuItems,
+  opsMenuItems,
+  isOps,
+  getPathWithQuery,
+  isActive,
+  onLinkClick,
+}: {
+  userMenuItems: MenuItem[];
+  opsMenuItems: MenuItem[];
+  isOps: boolean;
+  getPathWithQuery: (path: string) => string;
+  isActive: (path: string) => boolean;
+  onLinkClick?: () => void;
+}) {
+  const linkClass = (path: string) =>
+    cn(
+      "flex items-center gap-3 px-3 py-3 rounded-md text-sm transition-colors min-h-[44px] min-w-0 touch-manipulation",
+      isActive(path)
+        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+    );
+
+  return (
+    <>
+      <div className="mb-6">
+        <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          메뉴
+        </p>
+        <ul className="space-y-0.5">
+          {userMenuItems.map((item) => (
+            <li key={item.path}>
+              <Link to={getPathWithQuery(item.path)} className={linkClass(item.path)} onClick={onLinkClick}>
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {isOps && (
+        <div>
+          <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+            운영 (Ops)
+          </p>
+          <ul className="space-y-0.5">
+            {opsMenuItems.map((item) => (
+              <li key={item.path}>
+                <Link to={getPathWithQuery(item.path)} className={linkClass(item.path)} onClick={onLinkClick}>
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function AppMenu({ isOps = false, mobileOpen = false, onMobileOpenChange }: AppMenuProps) {
   const location = useLocation();
   const { serverType } = useAccountType();
 
@@ -71,60 +139,42 @@ export function AppMenu({ isOps = false }: AppMenuProps) {
   };
 
   return (
-    <aside className="w-56 bg-sidebar min-h-0 flex flex-col border-r border-sidebar-border flex-shrink-0 hidden lg:flex">
+    <>
+      <aside className="w-56 bg-sidebar min-h-0 flex flex-col border-r border-sidebar-border flex-shrink-0 hidden lg:flex">
       <ScrollArea className="flex-1">
         <nav className="p-3">
-          <div className="mb-6">
-            <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-              메뉴
-            </p>
-            <ul className="space-y-0.5">
-              {userMenuItems.map((item) => (
-                <li key={item.path}>
-                  <Link
-                    to={getPathWithQuery(item.path)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      isActive(item.path)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isOps && (
-            <div>
-              <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-                운영 (Ops)
-              </p>
-              <ul className="space-y-0.5">
-                {opsMenuItems.map((item) => (
-                  <li key={item.path}>
-                    <Link
-                      to={getPathWithQuery(item.path)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                        isActive(item.path)
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                      )}
-                    >
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <MenuNavContent
+            userMenuItems={userMenuItems}
+            opsMenuItems={opsMenuItems}
+            isOps={isOps}
+            getPathWithQuery={getPathWithQuery}
+            isActive={isActive}
+          />
         </nav>
       </ScrollArea>
     </aside>
+
+      {onMobileOpenChange && (
+        <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar border-sidebar-border">
+            <SheetHeader className="p-4 border-b border-sidebar-border">
+              <SheetTitle className="text-sidebar-foreground">메뉴</SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="flex-1 py-3">
+              <nav className="p-3">
+                <MenuNavContent
+                  userMenuItems={userMenuItems}
+                  opsMenuItems={opsMenuItems}
+                  isOps={isOps}
+                  getPathWithQuery={getPathWithQuery}
+                  isActive={isActive}
+                  onLinkClick={() => onMobileOpenChange(false)}
+                />
+              </nav>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+      )}
+    </>
   );
 }

@@ -14,7 +14,7 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
             <Logo className="w-10 h-10" />
-            <span className="text-xl font-bold text-foreground">Investment Choi</span>
+            <span className="text-xl font-bold text-foreground">Pulsarve</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

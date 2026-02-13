@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Common Low-Fidelity UI Components for Investment Choi Wireframes
+ * Common Low-Fidelity UI Components for Pulsarve Wireframes
  */
 
 /* /styles/globals.css 기반 토스뱅크 스타일 변수 (가정) */

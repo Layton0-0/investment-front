@@ -34,3 +34,31 @@ export function getCurrentPrices(symbols: string[]) {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+/** 일봉 차트 한 건 (TB_DAILY_STOCK 기반) */
+export interface DailyChartPointDto {
+  date?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+}
+
+/**
+ * 종목·시장·기간별 일봉 차트 데이터. 대시보드·포트폴리오 차트용. 최대 365일.
+ */
+export function getDailyChart(
+  symbol: string,
+  market: string,
+  from?: string,
+  to?: string
+) {
+  const params = new URLSearchParams({ symbol, market });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return apiFetch<DailyChartPointDto[]>(
+    `/api/v1/market-data/daily-chart?${params.toString()}`,
+    { method: "GET" }
+  );
+}

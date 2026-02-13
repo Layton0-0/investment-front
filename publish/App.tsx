@@ -19,7 +19,7 @@ const Login = ({ onLogin, onSwitch }: any) => (
     <Card className="w-full max-w-sm shadow-xl border-none" title="">
       <div className="flex flex-col items-center mb-8">
         <Logo className="w-16 h-16 mb-4" />
-        <h2 className="text-2xl font-black text-[#191f28]">Investment Choi</h2>
+        <h2 className="text-2xl font-black text-[#191f28]">Pulsarve</h2>
         <p className="text-[#8b95a1] font-medium mt-1">자동 투자의 새로운 기준</p>
       </div>
       <div className="space-y-4">
@@ -141,7 +141,7 @@ const Header = ({ role, onLogout, onLogoClick }: any) => (
   <header className="bg-white border-b border-[#f2f4f6] px-8 py-4 flex items-center justify-between sticky top-0 z-50 h-[64px]">
     <div className="flex items-center gap-3 cursor-pointer group" onClick={onLogoClick}>
       <Logo className="w-8 h-8 group-hover:scale-110 transition-transform" />
-      <h1 className="text-[19px] font-bold tracking-tight text-[#191f28]">Investment Choi</h1>
+      <h1 className="text-[19px] font-bold tracking-tight text-[#191f28]">Pulsarve</h1>
       <Badge status={role === 'Ops' ? 'executed' : 'neutral'}>{role}</Badge>
     </div>
     <div className="flex items-center gap-6 text-[15px] font-semibold text-[#4e5968]">
@@ -259,7 +259,7 @@ export default function App() {
           </main>
 
           <footer className="px-8 py-10 border-t border-[#f2f4f6] text-[13px] text-[#adb5bd] font-medium text-center">
-            © 2026 Investment Choi Auto-Trading Pipeline v4.0.0
+            © 2026 Pulsarve Auto-Trading Pipeline v4.0.0
           </footer>
         </div>
       </div>

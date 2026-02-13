@@ -47,7 +47,7 @@ export function FeaturesSection() {
             transition={{ duration: 0.5 }}
             className="text-3xl sm:text-4xl font-bold text-foreground mb-4"
           >
-            왜 Investment Choi를 선택해야 할까요?
+            왜 Pulsarve를 선택해야 할까요?
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 20 }}

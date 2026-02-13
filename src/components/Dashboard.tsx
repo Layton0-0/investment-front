@@ -5,6 +5,7 @@ import { DashboardSummaryCards } from "./DashboardSummaryCards";
 import { DashboardAccountCard } from "./DashboardAccountCard";
 import { DashboardPositionsTable } from "./DashboardPositionsTable";
 import { DashboardOrdersTable } from "./DashboardOrdersTable";
+import { PriceChart } from "./PriceChart";
 import type { ServerType } from "@/types";
 
 export interface DashboardProps {
@@ -53,6 +54,14 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
   }, [realAssets]);
 
   const effectiveHasAccount = hasAccount && (!!virtual || !!real);
+
+  const firstPositionForChart = useMemo(() => {
+    const v = virtualPositions?.[0];
+    const r = realPositions?.[0];
+    if (v?.symbol) return { symbol: v.symbol, market: v.market ?? "KR" };
+    if (r?.symbol) return { symbol: r.symbol, market: r.market ?? "KR" };
+    return { symbol: "005930", market: "KR" as const };
+  }, [virtualPositions, realPositions]);
 
   if (!effectiveHasAccount && !loading) {
     return (
@@ -123,6 +132,17 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
           emptyMessage={realAssets == null ? "실계좌 데이터가 없습니다." : undefined}
         />
       </div>
+      {firstPositionForChart && (
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-foreground">가격 추이</h2>
+          <PriceChart
+            symbol={firstPositionForChart.symbol}
+            market={firstPositionForChart.market}
+            title={`${firstPositionForChart.symbol} 일봉`}
+            height={260}
+          />
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardPositionsTable title="모의계좌 보유 종목" positions={virtualPositions} />
         <DashboardPositionsTable title="실계좌 보유 종목" positions={realPositions} />

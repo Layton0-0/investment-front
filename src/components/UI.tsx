@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Common Low-Fidelity UI Components for Investment Choi Wireframes.
+ * Common Low-Fidelity UI Components for Pulsarve Wireframes.
  * Uses design tokens from styles/globals.css (--color-primary, --color-text, --color-text-muted, --color-border, etc.).
  */
 

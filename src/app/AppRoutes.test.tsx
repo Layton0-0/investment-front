@@ -25,7 +25,7 @@ describe("routing", () => {
 
     const loginLinks = await screen.findAllByRole("link", { name: /로그인/ });
     expect(loginLinks.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Investment Choi").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Pulsarve").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows dashboard at /dashboard when authenticated", async () => {

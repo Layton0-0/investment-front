@@ -18,6 +18,9 @@ vi.mock("@/api/pipelineApi", () => ({
 vi.mock("@/api/settingsApi", () => ({
   getSettingByAccountNo: vi.fn()
 }));
+vi.mock("@/api/dashboardApi", () => ({
+  getPerformanceSummary: vi.fn()
+}));
 vi.mock("@/api/errorMessages", () => ({
   getDisplayErrorMessage: vi.fn((e: unknown) => (e instanceof Error ? e.message : "오류"))
 }));
@@ -27,6 +30,7 @@ import { getAccountAssets, getPositions } from "@/api/accountApi";
 import { getOrders } from "@/api/ordersApi";
 import { getPipelineSummary } from "@/api/pipelineApi";
 import { getSettingByAccountNo } from "@/api/settingsApi";
+import { getPerformanceSummary } from "@/api/dashboardApi";
 
 const mockGetMainAccount = vi.mocked(getMainAccount);
 const mockGetAccountAssets = vi.mocked(getAccountAssets);
@@ -34,6 +38,7 @@ const mockGetPositions = vi.mocked(getPositions);
 const mockGetOrders = vi.mocked(getOrders);
 const mockGetPipelineSummary = vi.mocked(getPipelineSummary);
 const mockGetSettingByAccountNo = vi.mocked(getSettingByAccountNo);
+const mockGetPerformanceSummary = vi.mocked(getPerformanceSummary);
 
 describe("useDashboardData", () => {
   beforeEach(() => {
@@ -96,6 +101,14 @@ describe("useDashboardData", () => {
     mockGetOrders.mockResolvedValue([]);
     mockGetPipelineSummary.mockResolvedValue(null);
     mockGetSettingByAccountNo.mockResolvedValue(null);
+    mockGetPerformanceSummary.mockResolvedValue({
+      totalCurrentValue: 0,
+      maxMddPct: undefined,
+      sharpeRatio: null,
+      sortinoRatio: null,
+      var95Pct: null,
+      cvar95Pct: null
+    });
 
     const { result } = renderHook(() => useDashboardData(1));
     await waitFor(() => {
@@ -104,7 +117,9 @@ describe("useDashboardData", () => {
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
-    expect(result.current.virtualAssets).not.toBeNull();
+    await waitFor(() => {
+      expect(result.current.virtualAssets).not.toBeNull();
+    });
     expect(result.current.virtualAssets?.totalAssetValue).toBe("1000000");
     expect(mockGetAccountAssets).toHaveBeenCalledWith("V123");
   });

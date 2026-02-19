@@ -83,32 +83,48 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
       {error && <Guardrail message={error} type="error" />}
       <DashboardSummaryCards onNavigate={onNavigate} />
       {performanceSummary && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {performanceSummary.totalCurrentValue != null && (
-            <div className="p-4 bg-card rounded-xl border border-border">
-              <p className="text-xs text-muted-foreground">총 평가액</p>
-              <p className="text-lg font-semibold">₩{Number(performanceSummary.totalCurrentValue).toLocaleString("ko-KR")}</p>
-            </div>
-          )}
-          {performanceSummary.maxMddPct != null && (
-            <div className="p-4 bg-card rounded-xl border border-border">
-              <p className="text-xs text-muted-foreground">최대 낙폭 (MDD)</p>
-              <p className="text-lg font-semibold">{(Number(performanceSummary.maxMddPct) * 100).toFixed(1)}%</p>
-            </div>
-          )}
-          {performanceSummary.sharpeRatio != null && (
-            <div className="p-4 bg-card rounded-xl border border-border">
-              <p className="text-xs text-muted-foreground">Sharpe 비율</p>
-              <p className="text-lg font-semibold">{Number(performanceSummary.sharpeRatio).toFixed(2)}</p>
-            </div>
-          )}
-          {performanceSummary.var95Pct != null && (
-            <div className="p-4 bg-card rounded-xl border border-border">
-              <p className="text-xs text-muted-foreground">1일 VaR 95%</p>
-              <p className="text-lg font-semibold">{Number(performanceSummary.var95Pct).toFixed(2)}%</p>
-            </div>
-          )}
-        </div>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">성과 요약</h2>
+          <p className="text-sm text-muted-foreground">계좌 합산 리스크·수익성 지표 (퀀트 메트릭)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            {performanceSummary.totalCurrentValue != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">총 평가액</p>
+                <p className="text-lg font-semibold">₩{Number(performanceSummary.totalCurrentValue).toLocaleString("ko-KR")}</p>
+              </div>
+            )}
+            {performanceSummary.maxMddPct != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">최대 낙폭 (MDD)</p>
+                <p className="text-lg font-semibold">{(Number(performanceSummary.maxMddPct) * 100).toFixed(1)}%</p>
+              </div>
+            )}
+            {performanceSummary.sharpeRatio != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">Sharpe 비율</p>
+                <p className="text-lg font-semibold">{Number(performanceSummary.sharpeRatio).toFixed(2)}</p>
+              </div>
+            )}
+            {performanceSummary.sortinoRatio != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">Sortino 비율</p>
+                <p className="text-lg font-semibold">{Number(performanceSummary.sortinoRatio).toFixed(2)}</p>
+              </div>
+            )}
+            {performanceSummary.var95Pct != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">1일 VaR 95%</p>
+                <p className="text-lg font-semibold">{Number(performanceSummary.var95Pct).toFixed(2)}%</p>
+              </div>
+            )}
+            {performanceSummary.cvar95Pct != null && (
+              <div className="p-4 bg-card rounded-xl border border-border">
+                <p className="text-xs text-muted-foreground">CVaR 95%</p>
+                <p className="text-lg font-semibold">{Number(performanceSummary.cvar95Pct).toFixed(2)}%</p>
+              </div>
+            )}
+          </div>
+        </section>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardAccountCard

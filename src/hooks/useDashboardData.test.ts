@@ -33,12 +33,12 @@ import { getSettingByAccountNo } from "@/api/settingsApi";
 import { getPerformanceSummary } from "@/api/dashboardApi";
 
 const mockGetMainAccount = vi.mocked(getMainAccount);
+const mockGetPerformanceSummary = vi.mocked(getPerformanceSummary);
 const mockGetAccountAssets = vi.mocked(getAccountAssets);
 const mockGetPositions = vi.mocked(getPositions);
 const mockGetOrders = vi.mocked(getOrders);
 const mockGetPipelineSummary = vi.mocked(getPipelineSummary);
 const mockGetSettingByAccountNo = vi.mocked(getSettingByAccountNo);
-const mockGetPerformanceSummary = vi.mocked(getPerformanceSummary);
 
 describe("useDashboardData", () => {
   beforeEach(() => {

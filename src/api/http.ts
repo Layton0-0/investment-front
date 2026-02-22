@@ -27,8 +27,8 @@ export class ApiError extends Error {
   }
 }
 
-/** 기본 백엔드 포트 8083 (8084는 Agent/테스트용). */
-const DEFAULT_API_BASE_URL = "http://localhost:8083";
+/** 기본 백엔드 포트 8080 (로컬·배포 통일). */
+const DEFAULT_API_BASE_URL = "http://localhost:8080";
 
 function getApiBaseUrl(): string {
   const env = import.meta.env?.VITE_API_BASE_URL;

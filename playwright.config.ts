@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * E2E tests assume:
  * - Frontend: npm run dev (http://localhost:5173)
- * - Backend: optional for full flows; Vite proxies /api to localhost:8083
+ * - Backend: optional for full flows; Vite proxies /api to localhost:8080
  * Run with: npm run e2e
  */
 export default defineConfig({

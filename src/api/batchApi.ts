@@ -22,8 +22,8 @@ export interface BatchJobDto {
 
 /**
  * 배치 작업 목록 조회.
- * 백엔드 실제 경로: GET /batch/api/jobs (문서상 /api/v1/batch/jobs 아님).
+ * 백엔드: GET /api/v1/batch/jobs (nginx가 /api 만 백엔드로 전달하므로 이 경로 사용).
  */
 export function getBatchJobs(): Promise<BatchJobDto[]> {
-  return apiFetch<BatchJobDto[]>("/batch/api/jobs", { method: "GET" });
+  return apiFetch<BatchJobDto[]>("/api/v1/batch/jobs", { method: "GET" });
 }

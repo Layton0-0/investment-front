@@ -101,7 +101,13 @@ export function LoginPage() {
             </p>
           </div>
 
-          <div className="space-y-6">
+          <form
+            className="space-y-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleLogin();
+            }}
+          >
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -153,16 +159,15 @@ export function LoginPage() {
             </div>
 
             <Button
-              type="button"
+              type="submit"
               variant="hero"
               size="lg"
               className="w-full"
               disabled={loading}
-              onClick={() => handleLogin()}
             >
               {loading ? "로그인 중..." : "로그인"}
             </Button>
-          </div>
+          </form>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             아직 계정이 없으신가요?{" "}

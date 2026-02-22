@@ -36,7 +36,7 @@ npm install
 
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
-| `VITE_API_BASE_URL` | 백엔드 API Base URL (미설정 시 8083 사용, 8084는 Agent/테스트용) | `http://localhost:8083` |
+| `VITE_API_BASE_URL` | 백엔드 API Base URL (미설정 시 8080 사용) | `http://localhost:8080` |
 
 ### 사용 방법
 
@@ -45,7 +45,7 @@ npm install
 프로젝트 루트에 `.env` 또는 `.env.local` 생성:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8083
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
 **2) 셸에서 한 번만 지정**
@@ -53,20 +53,20 @@ VITE_API_BASE_URL=http://localhost:8083
 PowerShell:
 
 ```powershell
-$env:VITE_API_BASE_URL="http://localhost:8083"
+$env:VITE_API_BASE_URL="http://localhost:8080"
 npm run dev
 ```
 
 Bash:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:8083 npm run dev
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
 ```
 
 **요청이 8084로 나가거나 CORS 오류가 날 때**
 
 - `VITE_API_BASE_URL`은 **개발 서버 기동 시**만 읽히므로, 강력 새로고침만으로는 바뀌지 않습니다.
-- `investment-front` 루트의 **`.env` 또는 `.env.local`**을 열어 `VITE_API_BASE_URL=http://localhost:8084`가 있으면 **삭제하거나** `http://localhost:8083`으로 바꾼 뒤, **개발 서버를 종료했다가 다시 실행**하세요 (`npm run dev` 재실행).
+- `investment-front` 루트의 **`.env` 또는 `.env.local`**을 열어 `VITE_API_BASE_URL=http://localhost:8084`가 있으면 **삭제하거나** `http://localhost:8080`으로 바꾼 뒤, **개발 서버를 종료했다가 다시 실행**하세요 (`npm run dev` 재실행).
 
 ## Project structure (요약)
 

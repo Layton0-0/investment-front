@@ -4,7 +4,7 @@ test.describe("Landing page", () => {
   test("shows brand and main content", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/./);
-    await expect(page.getByText("Investment Choi").first()).toBeVisible();
+    await expect(page.getByText("Pulsarve").first()).toBeVisible();
   });
 
   test("navigates to login from landing", async ({ page }) => {

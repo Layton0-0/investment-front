@@ -33,6 +33,7 @@ coverage/
 # Playwright E2E
 playwright-report/
 test-results/
+.playwright-browsers/
 
 # Vite / TypeScript cache and temp
 .vite/

@@ -8,6 +8,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Download, AlertTriangle } from "lucide-react";
 import { getTaxSummary, downloadTaxSummaryExport, type TaxReportSummaryDto } from "@/api/reportApi";
 
@@ -36,11 +45,21 @@ function amountClass(value: number | null | undefined): string {
 
 const currentYear = new Date().getFullYear();
 
+/** 내보낼 데이터가 없는지: 국내·해외 실현손익·배당 모두 값이 없을 때 true */
+function hasNoExportData(data: TaxReportSummaryDto | null): boolean {
+  if (data == null) return true;
+  const hasDomestic = data.domesticRealizedGainLoss != null;
+  const hasOverseas = data.overseasRealizedGainLoss != null;
+  const hasDividend = data.dividendTotal != null;
+  return !hasDomestic && !hasOverseas && !hasDividend;
+}
+
 export default function TaxReportPage() {
   const [year, setYear] = useState(String(currentYear));
   const [data, setData] = useState<TaxReportSummaryDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showNoDataModal, setShowNoDataModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +97,16 @@ export default function TaxReportPage() {
         : overseas != null
           ? overseas
           : null;
+
+  const noExportData = hasNoExportData(data);
+
+  const handleExportClick = (format: "csv" | "pdf") => {
+    if (noExportData) {
+      setShowNoDataModal(true);
+      return;
+    }
+    downloadTaxSummaryExport(Number(year), format);
+  };
 
   return (
     <div className="space-y-6">
@@ -204,7 +233,7 @@ export default function TaxReportPage() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => downloadTaxSummaryExport(Number(year), "csv")}
+              onClick={() => handleExportClick("csv")}
               title="CSV 다운로드"
             >
               <Download className="w-4 h-4 mr-2" />
@@ -212,13 +241,27 @@ export default function TaxReportPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => downloadTaxSummaryExport(Number(year), "pdf")}
+              onClick={() => handleExportClick("pdf")}
               title="PDF 다운로드"
             >
               <Download className="w-4 h-4 mr-2" />
               PDF 내보내기
             </Button>
           </div>
+
+          <AlertDialog open={showNoDataModal} onOpenChange={setShowNoDataModal}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>데이터 없음</AlertDialogTitle>
+                <AlertDialogDescription>
+                  표시된 데이터가 없어 내보내기를 할 수 없습니다. 해당 연도에 실현손익·배당 데이터가 있으면 다시 시도해 주세요.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setShowNoDataModal(false)}>확인</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
 

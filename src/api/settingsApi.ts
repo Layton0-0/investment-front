@@ -42,21 +42,26 @@ export interface TradingSettingDto {
   shortTermRatio?: number;
   mediumTermRatio?: number;
   longTermRatio?: number;
+  /** 파이프라인 자동 실행 허용. null = 서버 기본값 */
+  pipelineAutoExecute?: boolean | null;
+  /** 실계좌 자동 실행 허용. null = 서버 기본값 (실계좌 탭에서만 의미 있음) */
+  pipelineAllowRealExecution?: boolean | null;
 }
 
 export function getSettingsAccounts() {
   return apiFetch<SettingsAccountsResponseDto>("/api/v1/settings/accounts", { method: "GET" });
 }
 
-/** 계좌별 거래 설정 조회. 404/400(설정 없음) 시 null 반환. */
+/** 계좌별 거래 설정 조회. 설정 없으면 백엔드가 204 No Content → null 반환. */
 export async function getSettingByAccountNo(
   accountNo: string
 ): Promise<TradingSettingDto | null> {
   try {
-    return await apiFetch<TradingSettingDto>(
+    const result = await apiFetch<TradingSettingDto | undefined>(
       `/api/v1/settings/${encodeURIComponent(accountNo)}`,
       { method: "GET" }
     );
+    return result ?? null;
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
       return null;

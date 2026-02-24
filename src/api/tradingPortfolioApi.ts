@@ -12,9 +12,18 @@ export interface TradingPortfolioItemDto {
 }
 
 export interface TradingPortfolioDto {
-  date: string;
+  /** 백엔드 응답 필드 (yyyy-MM-dd) */
+  tradingDate?: string;
+  /** 프론트 호환용. 표시 시 tradingDate ?? date 사용 */
+  date?: string;
   items: TradingPortfolioItemDto[];
   riskManagementStrategy?: string;
+}
+
+/** 포트폴리오 날짜 표시용 (undefined 방지) */
+export function getPortfolioDisplayDate(p: TradingPortfolioDto | null | undefined): string {
+  if (!p) return "";
+  return p.tradingDate ?? p.date ?? "";
 }
 
 export function getTodayPortfolio() {

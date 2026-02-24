@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Card, DataTable, Button, Input, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
-import { cancelOrder, getOrders, placeOrder, type OrderRequestDto } from "@/api/ordersApi";
+import { cancelOrder, cancelAllPendingOrders, getOrders, placeOrder, type OrderRequestDto } from "@/api/ordersApi";
 import { getNews, collectNews, type NewsItemDto } from "@/api/newsApi";
 import {
   getTodayPortfolio,
@@ -10,6 +10,7 @@ import {
   getLatestPortfolios,
   generatePortfolio,
   getRebalanceSuggestions,
+  getPortfolioDisplayDate,
   type TradingPortfolioDto,
   type TradingPortfolioItemDto,
   type RebalanceSuggestionsDto
@@ -29,10 +30,37 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
+/** API가 ISO 문자열 또는 배열(year,month,day,h,m,s,nano)로 줄 수 있음. 읽기 쉬운 시간 문자열로 변환. */
+function formatNewsDateTime(value: string | number[] | null | undefined): string {
+  if (value == null) return "-";
+  if (typeof value === "string") {
+    try {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? value : d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "medium" });
+    } catch {
+      return value;
+    }
+  }
+  if (Array.isArray(value) && value.length >= 6) {
+    const [y, mo, d, h, mi, s] = value.map(Number);
+    const month = String(mo).padStart(2, "0");
+    const day = String(d).padStart(2, "0");
+    const hour = String(h).padStart(2, "0");
+    const min = String(mi).padStart(2, "0");
+    const sec = String(s).padStart(2, "0");
+    return `${y}-${month}-${day} ${hour}:${min}:${sec}`;
+  }
+  return "-";
+}
+
 export const News = () => {
   const [market, setMarket] = useState("");
   const [source, setSource] = useState("");
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
   const [symbol, setSymbol] = useState("");
   const [title, setTitle] = useState("");
 
@@ -41,6 +69,7 @@ export const News = () => {
   const [rows, setRows] = useState<NewsItemDto[]>([]);
   const [collecting, setCollecting] = useState(false);
   const [collectMessage, setCollectMessage] = useState<string | null>(null);
+  const [showCollectDoneModal, setShowCollectDoneModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,11 +90,13 @@ export const News = () => {
 
   const handleCollect = async () => {
     setCollectMessage(null);
+    setShowCollectDoneModal(false);
     setCollecting(true);
     try {
       const res = await collectNews();
       setCollectMessage(res.message ?? "수집 요청이 완료되었습니다.");
       await load();
+      setShowCollectDoneModal(true);
     } catch (e: unknown) {
       setCollectMessage(e instanceof Error ? e.message : "수집 실행에 실패했습니다.");
     } finally {
@@ -75,6 +106,9 @@ export const News = () => {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        아래 목록은 이미 수집된 뉴스·공시입니다. 새 데이터를 가져오려면 &quot;수집 실행&quot;을 눌러 주세요.
+      </p>
       <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-4 rounded-2xl border border-[#f2f4f6]">
         <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
           <Input label="원천" placeholder="DART/SEC_EDGAR..." value={source} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSource(e.target.value)} />
@@ -88,13 +122,44 @@ export const News = () => {
       </div>
       {collectMessage && <p className="text-sm text-muted-foreground">{collectMessage}</p>}
 
+      {/* 수집 중: 잠시만 기다려 달라는 모달 (닫기 불가) */}
+      <Dialog open={collecting} onOpenChange={() => {}}>
+        <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>뉴스·공시 수집 중</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">DART·SEC EDGAR 등에서 데이터를 가져오는 중입니다. 잠시만 기다려 주세요.</p>
+          <div className="flex justify-center py-4">
+            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 수집 완료 알림 모달 */}
+      <Dialog open={showCollectDoneModal} onOpenChange={setShowCollectDoneModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>수집 완료</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">뉴스·공시 수집이 완료되었습니다. 목록이 새로고침되었습니다.</p>
+          <DialogFooter>
+            <Button onClick={() => setShowCollectDoneModal(false)}>확인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {error && <Guardrail type="error" message={error} />}
 
       <Card title="시장 뉴스 및 공시 목록">
+        {!loading && rows.length === 0 && (
+          <p className="text-sm text-muted-foreground py-4">
+            표시할 뉴스·공시가 없습니다. &quot;수집 실행&quot;으로 DART·SEC EDGAR 등에서 데이터를 가져올 수 있습니다.
+          </p>
+        )}
         <DataTable
           headers={["시간", "시장", "종목", "구분", "제목", "원천"]}
           rows={rows.map((n) => [
-            String(n.createdAt ?? "-"),
+            formatNewsDateTime(n.createdAt as string | number[] | undefined),
             String(n.market ?? "-"),
             String(n.symbol ?? "-"),
             String(n.itemType ?? "-"),
@@ -283,7 +348,7 @@ export const Portfolio = () => {
   const [error, setError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<TradingPortfolioDto | null>(null);
   const [latestList, setLatestList] = useState<TradingPortfolioDto[]>([]);
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -380,7 +445,7 @@ export const Portfolio = () => {
     try {
       const res = await generatePortfolio(selectedDate || undefined);
       setPortfolio(res);
-      setGenerateMessage(`생성 완료: ${res.date}`);
+      setGenerateMessage(`생성 완료: ${getPortfolioDisplayDate(res) || "완료"}`);
     } catch (e: unknown) {
       setGenerateMessage(e instanceof Error ? e.message : "생성에 실패했습니다.");
     } finally {
@@ -402,13 +467,20 @@ export const Portfolio = () => {
       {loading && <Guardrail type="info" message="포트폴리오 로딩 중…" />}
       {error && <Guardrail type="error" message={error} />}
 
+      {!loading && (!portfolio?.items?.length) && (
+        <Guardrail
+          type="info"
+          message="이 날짜의 트레이딩 포트폴리오(추천 종목)가 아직 없습니다. 매일 정해진 시간에 자동으로 생성되며, 위에서 '수동 생성' 버튼을 누르면 지금 바로 생성할 수 있습니다."
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="자산 배분 현황" className="md:col-span-1">
           <div className="h-48 bg-[#f2f4f6] border border-dashed border-[#e5e8eb] flex items-center justify-center text-[10px] text-[#8b95a1]">
             [ ASSET ALLOCATION CHART ]
           </div>
         </Card>
-        <Card title={portfolio ? `트레이딩 포트폴리오 (${portfolio.date})` : "트레이딩 포트폴리오"} className="md:col-span-2">
+        <Card title={portfolio ? `트레이딩 포트폴리오 (${getPortfolioDisplayDate(portfolio) || "해당 날짜"})` : "트레이딩 포트폴리오"} className="md:col-span-2">
           <DataTable
             headers={["종목", "시장", "진입가", "목표가", "손절가", "사유"]}
             rows={(portfolio?.items ?? []).map((it: TradingPortfolioItemDto) => [
@@ -518,6 +590,7 @@ export const Orders = () => {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [cancellingAll, setCancellingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -575,6 +648,23 @@ export const Orders = () => {
     }
   };
 
+  const handleCancelAllPending = async () => {
+    if (!accountNo) return;
+    if (!window.confirm("해당 계좌의 미체결 주문을 모두 취소합니다. 계속할까요?")) return;
+    setOrderError(null);
+    setOrderSuccess(null);
+    setCancellingAll(true);
+    try {
+      const res = await cancelAllPendingOrders(accountNo);
+      setOrderSuccess(res.cancelledCount > 0 ? `미체결 ${res.cancelledCount}건 취소되었습니다.` : "취소할 미체결 주문이 없습니다.");
+      await load();
+    } catch (e: unknown) {
+      setOrderError(e instanceof Error ? e.message : "미체결 전체 취소에 실패했습니다.");
+    } finally {
+      setCancellingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {accountNo && (
@@ -608,7 +698,14 @@ export const Orders = () => {
         <div className="flex gap-2">
           <Button variant="secondary" className="text-xs" disabled>전체</Button>
         </div>
-        <Button variant="secondary" className="text-xs" disabled>미체결 전체 취소(준비중)</Button>
+        <Button
+          variant="secondary"
+          className="text-xs"
+          disabled={!accountNo || loading || cancellingAll}
+          onClick={handleCancelAllPending}
+        >
+          {cancellingAll ? "취소 중…" : "미체결 전체 취소"}
+        </Button>
       </div>
 
       {error && <Guardrail type="error" message={error} />}

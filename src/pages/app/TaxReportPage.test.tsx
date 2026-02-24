@@ -1,20 +1,17 @@
 import React from "react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import TaxReportPage from "./TaxReportPage";
 import { getTaxSummary } from "@/api/reportApi";
 
 vi.mock("@/api/reportApi", () => ({
-  getTaxSummary: vi.fn()
+  getTaxSummary: vi.fn(),
+  downloadTaxSummaryExport: vi.fn()
 }));
 
 const mockGetTaxSummary = vi.mocked(getTaxSummary);
 
 describe("TaxReportPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("shows heading and year select", () => {
     mockGetTaxSummary.mockImplementation(() => new Promise(() => {}));
     render(<TaxReportPage />);

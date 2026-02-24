@@ -72,10 +72,12 @@ export function AppShell() {
     }
   }, [location.search, auth.serverType, auth.setServerType]);
 
-  const hideSegmentControl =
-    location.pathname === "/dashboard" ||
-    location.pathname === "/risk" ||
-    location.pathname.startsWith("/ops/");
+  // 모의/실계좌 구분이 필요한 메뉴에서만 세그먼트 표시 (설정·자동투자·전략·주문)
+  const showSegmentControl =
+    location.pathname === "/settings" ||
+    location.pathname === "/auto-invest" ||
+    location.pathname.startsWith("/strategies/") ||
+    location.pathname === "/orders";
 
   const linkTo = (path: string) => ({ pathname: path, search: `?serverType=${auth.serverType}` });
 
@@ -99,7 +101,7 @@ export function AppShell() {
           </div>
         </div>
 
-        {!hideSegmentControl && (
+        {showSegmentControl && (
           <div className="p-4 border-b border-sidebar-border">
             <SegmentControl
               options={[
@@ -210,7 +212,7 @@ export function AppShell() {
           </div>
         </header>
 
-        {!hideSegmentControl && (
+        {showSegmentControl && (
           <div className="bg-muted/30 border-b border-border px-8 py-3">
             <div className="text-sm text-muted-foreground hidden md:block">
               모의/실계좌 전환은 좌측 사이드바에서 선택하세요.

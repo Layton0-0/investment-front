@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Power, AlertTriangle } from "lucide-react";
 import { useAccountType } from "@/hooks/useAccountType";
+import { useCurrentAccountAutoTrade } from "@/hooks/useCurrentAccountAutoTrade";
 import { useAuth } from "@/app/AuthContext";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -22,12 +23,12 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { serverType, serverTypeNumeric } = useAccountType();
+  const { isAutoTradeOn } = useCurrentAccountAutoTrade(serverTypeNumeric);
 
   const linkTo = (path: string) => `${path}?serverType=${serverType === "real" ? "0" : "1"}`;
   const onNavigate = (path: string) => navigate(linkTo(path));
 
   const isAdmin = auth.role === "Admin";
-  const isAutoTradeOn = true; // TODO: derive from tradingSetting when available
 
   return (
     <div className="space-y-6">
@@ -55,7 +56,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {isAdmin && (
+      {isAdmin && isAutoTradeOn && (
         <Card className="border-destructive/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -69,7 +70,7 @@ export default function DashboardPage() {
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full" disabled={!isAutoTradeOn}>
+                <Button variant="destructive" className="w-full">
                   자동 실행 긴급 중지
                 </Button>
               </AlertDialogTrigger>

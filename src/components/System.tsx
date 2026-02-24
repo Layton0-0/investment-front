@@ -5,6 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card as UICard, DataTable, Button as UIButton, Input as UIInput, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { useSettingsAccountsAll } from "@/hooks/useSettingsAccountsAll";
@@ -31,7 +42,17 @@ import {
   type LastPreExecutionResultDto,
 } from "@/api/backtestApi";
 import type { ServerType } from "@/types";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertTriangle, CheckCircle, Info, ChevronRight } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 export interface SettingsProps {
   serverType: ServerType;
@@ -81,6 +102,8 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
   const [shortTermRatio, setShortTermRatio] = useState<number>(0.2);
   const [mediumTermRatio, setMediumTermRatio] = useState<number>(0.4);
   const [longTermRatio, setLongTermRatio] = useState<number>(0.4);
+  const [pipelineAutoExecute, setPipelineAutoExecute] = useState<boolean>(false);
+  const [pipelineAllowRealExecution, setPipelineAllowRealExecution] = useState<boolean>(false);
 
   const accountCount = (mainMock ? 1 : 0) + (mainReal ? 1 : 0);
   const currentTradingAccountNo = tradingTabType === 1 ? mainMock?.accountNo ?? null : mainReal?.accountNo ?? null;
@@ -124,6 +147,8 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
         if (existing.shortTermRatio != null) setShortTermRatio(Number(existing.shortTermRatio));
         if (existing.mediumTermRatio != null) setMediumTermRatio(Number(existing.mediumTermRatio));
         if (existing.longTermRatio != null) setLongTermRatio(Number(existing.longTermRatio));
+        setPipelineAutoExecute(existing.pipelineAutoExecute ?? false);
+        setPipelineAllowRealExecution(existing.pipelineAllowRealExecution ?? false);
       }
     } catch {
       // keep current form state
@@ -202,6 +227,19 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
     }
   };
 
+  const buildTradingDto = (autoOn: boolean): TradingSettingDto => ({
+    maxInvestmentAmount: Number(maxInvestmentAmount) || 10000000,
+    minInvestmentAmount: undefined,
+    defaultCurrency,
+    autoTradingEnabled: autoOn,
+    roboAdvisorEnabled: false,
+    shortTermRatio: undefined,
+    mediumTermRatio: undefined,
+    longTermRatio: undefined,
+    pipelineAutoExecute: autoOn,
+    pipelineAllowRealExecution: pipelineAllowRealExecution,
+  });
+
   const handleSaveTrading = async () => {
     setSaveError(null);
     setInfo(null);
@@ -210,20 +248,26 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
       return;
     }
     try {
-      const dto: TradingSettingDto = {
-        maxInvestmentAmount: Number(maxInvestmentAmount) || 10000000,
-        minInvestmentAmount: Number(minInvestmentAmount) || 100000,
-        defaultCurrency,
-        autoTradingEnabled: effectiveAutoOn,
-        roboAdvisorEnabled,
-        shortTermRatio,
-        mediumTermRatio,
-        longTermRatio,
-      };
-      await updateSetting(currentTradingAccountNo, dto);
+      await updateSetting(currentTradingAccountNo, buildTradingDto(effectiveAutoOn));
       setInfo("저장되었습니다.");
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "거래 설정 저장에 실패했습니다.");
+    }
+  };
+
+  const handleTurnOnAutoTrading = async () => {
+    setSaveError(null);
+    setInfo(null);
+    if (!currentTradingAccountNo) {
+      setSaveError("계좌를 먼저 연결해주세요.");
+      return;
+    }
+    setAutoTradingEnabled(true);
+    try {
+      await updateSetting(currentTradingAccountNo, buildTradingDto(true));
+      setInfo("자동투자가 켜졌습니다. 이 계좌(모의/실)에서 자동 매매가 활성화됩니다.");
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "자동투자 활성화에 실패했습니다.");
     }
   };
 
@@ -418,122 +462,92 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
 
                 {tradingLoading && <Guardrail type="info" message="거래 설정 로딩 중…" />}
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">자동 매매</p>
-                    <p className="text-sm text-muted-foreground">시그널 발생 시 자동으로 주문</p>
-                  </div>
-                  <Switch
-                    checked={effectiveAutoOn}
-                    onCheckedChange={(v) => (onToggleAutoTrade != null ? onToggleAutoTrade() : setAutoTradingEnabled(!!v))}
-                    disabled={!currentTradingAccountNo}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">로보어드바이저 (ETF)</p>
-                    <p className="text-sm text-muted-foreground">ETF 기반 자동 리밸런싱</p>
-                  </div>
-                  <Switch
-                    checked={roboAdvisorEnabled}
-                    onCheckedChange={(v) => {
-                      setRoboAdvisorEnabled(!!v);
-                      if (v) setAutoTradingEnabled(true);
-                    }}
-                    disabled={!currentTradingAccountNo}
-                  />
-                </div>
-                {roboAdvisorEnabled && (
-                  <p className="text-xs text-muted-foreground bg-accent/10 p-2 rounded">로보어드바이저 활성화 시 자동 매매도 함께 켜집니다.</p>
-                )}
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">최소 투자금액 (원)</Label>
-                    <Input
-                      type="number"
-                      value={minInvestmentAmount}
-                      onChange={(e) => setMinInvestmentAmount(e.target.value)}
-                      placeholder="100000"
+                <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">자동투자 ON/OFF</p>
+                      <p className="text-sm text-muted-foreground">시그널 발생 시 이 계좌(모의/실)에서 자동으로 주문합니다. 켜려면 스위치를 ON 한 뒤 저장하거나, 아래 &quot;자동투자 켜기&quot;를 누르세요.</p>
+                    </div>
+                    <Switch
+                      checked={effectiveAutoOn}
+                      onCheckedChange={(v) => (onToggleAutoTrade != null ? onToggleAutoTrade() : setAutoTradingEnabled(!!v))}
+                      disabled={!currentTradingAccountNo}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">최대 투자금액 (원)</Label>
-                    <Input
-                      type="number"
-                      value={maxInvestmentAmount}
-                      onChange={(e) => setMaxInvestmentAmount(e.target.value)}
-                      placeholder="10000000"
-                    />
-                  </div>
+                  {!effectiveAutoOn && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="default" size="sm" disabled={!currentTradingAccountNo || tradingLoading}>
+                          자동투자 켜기
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>자동투자 켜기</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            선택한 계좌({accountCount === 2 ? (tradingTabType === 1 ? "모의계좌" : "실계좌") : mainMock ? "모의계좌" : "실계좌"})에서 자동투자를 켜고 저장합니다. 저장 후 즉시 자동 매매가 활성화됩니다. 진행할까요?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleTurnOnAutoTrading}>
+                            켜기 및 저장
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm text-muted-foreground">전략 비중 (합계=100%)</Label>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">단기</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={shortTermRatio}
-                        onChange={(e) => setShortTermRatio(Number(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">중기</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={mediumTermRatio}
-                        onChange={(e) => setMediumTermRatio(Number(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">장기</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={longTermRatio}
-                        onChange={(e) => setLongTermRatio(Number(e.target.value))}
-                      />
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-sm text-muted-foreground">최대 투자금액 (원)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground hover:text-foreground focus:outline-none">
+                          <Info className="w-3.5 h-3.5" aria-label="최대 투자금액 설명" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        이 계좌에서 시스템이 자동 매매에 사용할 수 있는 최대 금액(원)입니다. 이 한도를 넘어서 주문하지 않습니다.
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
+                  <Input
+                    type="number"
+                    value={maxInvestmentAmount}
+                    onChange={(e) => setMaxInvestmentAmount(e.target.value)}
+                    placeholder="10000000"
+                  />
                 </div>
 
-                <Button onClick={handleSaveTrading} disabled={!currentTradingAccountNo || tradingLoading}>
-                  저장
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button disabled={!currentTradingAccountNo || tradingLoading}>
+                      저장
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>자동투자 설정 저장</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        해당 계좌의 자동투자 ON/OFF와 최대 사용 금액이 저장됩니다. 저장하시겠습니까?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>취소</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleSaveTrading}>
+                        저장
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
           )}
 
-          <Card className="border-muted">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">서버 설정 (읽기 전용)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">PIPELINE_AUTO_EXECUTE</span>
-                <span className="font-mono">—</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">PIPELINE_ALLOW_REAL_EXECUTION</span>
-                <span className="font-mono">—</span>
-              </div>
-              <p className="text-xs text-muted-foreground pt-2">이 설정은 서버에서만 변경 가능합니다.</p>
-            </CardContent>
-          </Card>
-
-          {serverType === 0 && (
-            <Guardrail message="실계좌 자동 실행은 서버 설정(PIPELINE_ALLOW_REAL_EXECUTION)으로만 허용됩니다." type="info" />
+          {serverType === 0 && tradingTabType === 0 && (
+            <Guardrail message="실계좌 자동 실행을 켜면 해당 계좌에 대해 실제 주문이 나갑니다. 신중히 설정하세요." type="info" />
           )}
         </TabsContent>
       </Tabs>
@@ -625,25 +639,37 @@ export const Backtest = () => {
   };
 
   const displayResult = mode === "robo" ? roboResult : result;
+  const pipelineCagr = result?.cagr ?? result?.cagrPct;
+  const curveRaw = (mode === "robo" ? roboResult?.equityCurve : result?.equityCurve) ?? [];
+  const curveData = curveRaw.map((p: { date: string; value?: number; equity?: number }) => ({
+    date: p.date,
+    value: Number(p.value ?? p.equity ?? 0),
+  })).filter((d) => d.value > 0);
+  const hasCurveData = curveData.length > 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 items-center">
-        <span className="text-sm font-medium text-muted-foreground">모드:</span>
-        <button
-          type="button"
-          onClick={() => setMode("pipeline")}
-          className={`px-3 py-1 rounded text-sm ${mode === "pipeline" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-        >
-          4단계 파이프라인 백테스트
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("robo")}
-          className={`px-3 py-1 rounded text-sm ${mode === "robo" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-        >
-          로보어드바이저 백테스트
-        </button>
+      <div className="space-y-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <span className="text-sm font-medium text-muted-foreground">전략 유형:</span>
+          <button
+            type="button"
+            onClick={() => setMode("pipeline")}
+            className={`px-3 py-1 rounded text-sm ${mode === "pipeline" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+          >
+            4단계 파이프라인 (개별종목)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("robo")}
+            className={`px-3 py-1 rounded text-sm ${mode === "robo" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+          >
+            로보 어드바이저 (ETF)
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          우리 자동매매는 두 가지 전략을 지원합니다. 위에서 선택한 전략에 대해 과거 기간을 시뮬레이션할 수 있습니다.
+        </p>
       </div>
 
       {error && <Guardrail type="error" message={error} />}
@@ -658,7 +684,7 @@ export const Backtest = () => {
         </UICard>
       )}
 
-      <UICard title={mode === "robo" ? "로보 백테스트 설정" : "백테스트 설정"}>
+      <UICard title="백테스트 설정 및 결과">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-4 col-span-1">
             {mode === "pipeline" && (
@@ -681,61 +707,112 @@ export const Backtest = () => {
             <UIButton className="w-full" disabled={loading} onClick={handleRun}>테스트 실행</UIButton>
           </div>
           <div className="col-span-3 border-l border-gray-100 pl-4 space-y-6">
+            {!displayResult && !loading && (
+              <p className="text-sm text-muted-foreground">
+                테스트 실행을 누르면 선택한 기간·전략으로 시뮬레이션 결과가 여기에 표시됩니다.
+              </p>
+            )}
             {(mode === "robo" ? roboResult?.warningMessage : result?.warningMessage) && (
               <Guardrail type="warning" message={mode === "robo" ? roboResult!.warningMessage! : result!.warningMessage!} />
             )}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">CAGR</div>
-                <div className="text-lg font-mono font-bold">{mode === "robo" ? (roboResult?.cagr ?? "-") : (result?.cagrPct ?? "-")}{mode === "pipeline" ? "%" : ""}</div>
-              </div>
-              <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">MDD</div>
-                <div className="text-lg font-mono font-bold text-[#4e5968]">{mode === "robo" ? (roboResult?.mddPct ?? "-") : (result?.mddPct ?? "-")}%</div>
-              </div>
-              <div className="bg-gray-50 p-3">
-                <div className="text-[10px] font-bold text-[#8b95a1] uppercase">Sharpe</div>
-                <div className="text-lg font-mono font-bold">{mode === "robo" ? (roboResult?.sharpeRatio ?? "-") : (result?.sharpeRatio ?? "-")}</div>
-              </div>
-              {mode === "robo" && (
-                <>
-                  <div className="bg-gray-50 p-3">
-                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">Calmar</div>
-                    <div className="text-lg font-mono font-bold">{roboResult?.calmarRatio ?? "-"}</div>
+            {displayResult && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">CAGR (연평균 수익률)</div>
+                    <div className="text-lg font-mono font-bold">{mode === "robo" ? (roboResult?.cagr ?? "-") : (pipelineCagr ?? "-")}{typeof (mode === "robo" ? roboResult?.cagr : pipelineCagr) === "number" ? "%" : ""}</div>
                   </div>
-                  <div className="bg-gray-50 p-3">
-                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">회전율</div>
-                    <div className="text-lg font-mono font-bold">{roboResult?.turnover ?? "-"}%</div>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">MDD (최대 낙폭)</div>
+                    <div className="text-lg font-mono font-bold text-[#4e5968]">{mode === "robo" ? (roboResult?.mddPct ?? "-") : (result?.mddPct ?? "-")}{typeof (mode === "robo" ? roboResult?.mddPct : result?.mddPct) === "number" ? "%" : ""}</div>
                   </div>
-                  <div className="bg-gray-50 p-3">
-                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">벤치마크 CAGR</div>
-                    <div className="text-lg font-mono font-bold">{roboResult?.benchmarkCagr ?? "-"}</div>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="text-[10px] font-bold text-[#8b95a1] uppercase">Sharpe (위험 대비 수익)</div>
+                    <div className="text-lg font-mono font-bold">{mode === "robo" ? (roboResult?.sharpeRatio ?? "-") : (result?.sharpeRatio ?? "-")}</div>
                   </div>
-                </>
-              )}
-            </div>
-            <div className="h-64 bg-[#f2f4f6] border border-dashed border-[#e5e8eb] flex items-center justify-center text-[#8b95a1] text-sm">
-              [ 수익 곡선 그래프 (Placeholder) ]
-            </div>
+                  {mode === "robo" && (
+                    <>
+                      <div className="bg-gray-50 p-3 rounded">
+                        <div className="text-[10px] font-bold text-[#8b95a1] uppercase">Calmar</div>
+                        <div className="text-lg font-mono font-bold">{roboResult?.calmarRatio ?? "-"}</div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded">
+                        <div className="text-[10px] font-bold text-[#8b95a1] uppercase">회전율</div>
+                        <div className="text-lg font-mono font-bold">{roboResult?.turnover ?? "-"}{typeof roboResult?.turnover === "number" ? "%" : ""}</div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded">
+                        <div className="text-[10px] font-bold text-[#8b95a1] uppercase">벤치마크 CAGR</div>
+                        <div className="text-lg font-mono font-bold">{roboResult?.benchmarkCagr ?? "-"}{typeof roboResult?.benchmarkCagr === "number" ? "%" : ""}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="h-64 min-h-[200px] bg-[#f8fafc] border border-[#e5e8eb] rounded flex items-center justify-center overflow-hidden">
+                  {hasCurveData ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={curveData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e8eb" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`} />
+                        <RechartsTooltip formatter={(v: number) => [v.toLocaleString(), "자산"]} labelFormatter={(l) => `날짜: ${l}`} />
+                        <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot={false} name="자산" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center px-4">
+                      수익 곡선 데이터가 없습니다. 기간을 넓히거나, 로보 모드에서는 US 일봉 수집 후 다시 실행해 보세요.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+            {!displayResult && (
+              <div className="h-64 min-h-[160px] bg-[#f2f4f6] border border-dashed border-[#e5e8eb] rounded flex items-center justify-center">
+                <p className="text-sm text-muted-foreground text-center px-4">
+                  수익 곡선은 테스트 실행 후 여기에 표시됩니다.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </UICard>
 
       {mode === "pipeline" && (
         <UICard title="시뮬레이션 거래 내역">
-          <DataTable
-            headers={["날짜", "종목", "구분", "가격", "수량", "수익률"]}
-            rows={(result?.trades ?? []).map((t: BacktestTradeDto) => [
-              String(t.tradeDate ?? t.date ?? "-"),
-              String(t.symbol ?? "-"),
-              String(t.side ?? t.orderType ?? "-"),
-              String(t.price ?? "-"),
-              String(t.quantity ?? "-"),
-              String(t.returnPct ?? "-")
-            ])}
-          />
+          {(result?.trades?.length ?? 0) > 0 ? (
+            <DataTable
+              headers={["날짜", "종목", "구분", "가격", "수량", "수익률"]}
+              rows={(result?.trades ?? []).map((t: BacktestTradeDto) => [
+                String(t.tradeDate ?? t.date ?? "-"),
+                String(t.symbol ?? "-"),
+                String(t.side ?? t.orderType ?? "-"),
+                String(t.price ?? "-"),
+                String(t.quantity ?? "-"),
+                String(t.returnPct ?? "-")
+              ])}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground py-4">
+              거래 내역이 없습니다. 기간 내 매매가 없거나 데이터가 없을 때 이렇게 표시됩니다.
+            </p>
+          )}
         </UICard>
       )}
+
+      <details className="rounded-lg border border-[#e5e8eb] bg-[#f8fafc] group">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-foreground hover:bg-[#f1f5f9] rounded-t-lg [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+          지표 설명 (CAGR, MDD, Sharpe 등)
+        </summary>
+        <div className="px-4 pb-4 pt-1 text-sm text-muted-foreground space-y-3 border-t border-[#e5e8eb]">
+          <p><strong className="text-foreground">CAGR (연평균 수익률)</strong>: 기간 동안 매년 평균적으로 얼마나 수익이 났는지 나타냅니다. 10%면 1년에 평균 10% 수익이라는 뜻입니다.</p>
+          <p><strong className="text-foreground">MDD (최대 낙폭)</strong>: 그 기간 안에서 고점 대비 가장 크게 떨어진 폭(%)입니다. 낮을수록 변동이 덜 심하다는 의미입니다.</p>
+          <p><strong className="text-foreground">Sharpe (샤프 비율)</strong>: 수익률을 변동성(위험)으로 나눈 값입니다. 높을수록 위험 대비 수익이 좋다고 보면 됩니다. 보통 1 이상이면 양호한 편입니다.</p>
+          <p><strong className="text-foreground">Calmar</strong>: 연평균 수익률을 최대 낙폭(MDD)으로 나눈 값입니다. 낙폭 대비 수익이 얼마나 나는지 보는 지표입니다.</p>
+          <p><strong className="text-foreground">회전율</strong>: 1년 동안 포트폴리오가 얼마나 자주 바뀌었는지(%)를 나타냅니다. 높으면 거래가 잦다는 뜻입니다.</p>
+          <p><strong className="text-foreground">벤치마크 CAGR</strong>: 비교 대상(예: 시장 지수)의 연평균 수익률입니다. 우리 전략 CAGR이 벤치마크보다 높으면 상대적으로 잘한 것입니다.</p>
+        </div>
+      </details>
     </div>
   );
 };

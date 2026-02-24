@@ -20,12 +20,15 @@ export interface BacktestTradeDto {
   [key: string]: unknown;
 }
 
+/** 백엔드 DateEquityPoint: date, equity */
 export interface BacktestRunResult {
   warningMessage?: string;
+  /** 연평균 수익률(%) — 백엔드 필드명 cagr */
   cagrPct?: number;
+  cagr?: number;
   mddPct?: number;
   sharpeRatio?: number;
-  equityCurve?: Array<{ date: string; value: number }>;
+  equityCurve?: Array<{ date: string; value?: number; equity?: number }>;
   trades?: BacktestTradeDto[];
 }
 
@@ -57,8 +60,8 @@ export interface RoboBacktestResult {
   turnover?: number;
   benchmarkCagr?: number;
   benchmarkMddPct?: number;
-  equityCurve?: Array<{ date: string; value: number }>;
-  benchmarkCurve?: Array<{ date: string; value: number }>;
+  equityCurve?: Array<{ date: string; value?: number; equity?: number }>;
+  benchmarkCurve?: Array<{ date: string; value?: number; equity?: number }>;
   rebalanceHistory?: unknown[];
   warningMessage?: string;
 }

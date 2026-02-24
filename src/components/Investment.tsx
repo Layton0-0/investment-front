@@ -108,7 +108,6 @@ export const AutoInvest = () => {
 
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground">4단계 파이프라인(유니버스→시그널→자금관리→매매) 현황입니다.</p>
       {loading && <Guardrail message="자동투자 현황 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
       {!allocationReady && summary && !loading && (
@@ -437,6 +436,7 @@ function StrategyFormModal({
 
 const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<StrategyDto[]>([]);
@@ -540,18 +540,6 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
     }
   };
 
-  const openCreate = () => {
-    setFormMode("create");
-    setFormInitial({
-      accountNo: mainAccountNo ?? "",
-      market: apiMarket,
-      strategyType: "SHORT_TERM",
-      status: "STOPPED",
-    });
-    setFormError(null);
-    setFormOpen(true);
-  };
-
   const openEdit = (s: StrategyDto) => {
     setFormMode("edit");
     setFormInitial({
@@ -577,15 +565,35 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         <h2 className="text-lg font-bold uppercase">
           {market === "kr" ? "국내" : "미국"} 전략 목록
         </h2>
-        <div className="flex gap-2">
-          <Button variant="secondary" className="text-[12px] px-3 py-2" onClick={openCreate}>
-            전략 추가
-          </Button>
-          <Badge status="active">SYSTEM ACTIVE</Badge>
-        </div>
+        <Badge status="active">SYSTEM ACTIVE</Badge>
       </div>
       {loading && <Guardrail message="전략 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
+      {!loading && !error && items.length === 0 && (
+        <Card className="border-dashed">
+          <div className="py-10 text-center">
+            {!mainAccountNo ? (
+              <>
+                <p className="text-sm font-medium text-foreground mb-1">계좌가 연결되지 않았습니다</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  설정에서 {market === "kr" ? "국내" : "미국"} 계좌(모의 또는 실계좌)를 연결하면 이 시장의 전략을 등록·관리할 수 있습니다.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => navigate(`/settings?serverType=${auth.serverType}`)}>
+                  설정으로 가기
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground mb-1">시스템 적용 전략 조회</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  시스템이 적용한 단기/중기/장기 전략을 조회합니다. 활성/중지는 각 전략 카드에서 변경할 수 있습니다.
+                </p>
+                <p className="text-xs text-muted-foreground">전략 목록이 비어 있으면 새로고침해 주세요.</p>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {items.map((s) => (
           <Card key={`${s.accountNo}-${s.strategyType}`} title={`전략 ${s.strategyType}`}>

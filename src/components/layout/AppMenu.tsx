@@ -42,8 +42,8 @@ const userMenuItems: MenuItem[] = [
   { icon: Briefcase, label: "포트폴리오", path: "/portfolio" },
   { icon: ClipboardList, label: "주문·체결", path: "/orders" },
   { icon: FlaskConical, label: "백테스트", path: "/backtest" },
-  { icon: Settings, label: "설정", path: "/settings" },
   { icon: FileText, label: "연말 세금·리포트", path: "/report/tax" },
+  { icon: Settings, label: "설정", path: "/settings" },
 ];
 
 const opsMenuItems: MenuItem[] = [

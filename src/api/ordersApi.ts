@@ -61,6 +61,14 @@ export function cancelOrder(orderId: string, accountNo: string) {
   );
 }
 
+/** 미체결(PENDING) 주문 전체 취소. 취소된 건수 반환. */
+export function cancelAllPendingOrders(accountNo: string): Promise<{ accountNo: string; cancelledCount: number }> {
+  return apiFetch<{ accountNo: string; cancelledCount: number }>(
+    `/api/v1/orders/cancel-all-pending?accountNo=${encodeURIComponent(accountNo)}`,
+    { method: "POST" }
+  );
+}
+
 /** 수동 주문 요청 (매수/매도). */
 export interface OrderRequestDto {
   accountNo: string;

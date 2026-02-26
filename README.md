@@ -90,6 +90,23 @@ investment-front/
 
 Import 경로는 `@/` alias 사용 (예: `@/api/http`, `@/components/Dashboard`).
 
+## E2E (Playwright)
+
+| 명령 | 설명 |
+|------|------|
+| `npm run e2e` | 전체 E2E 실행 (기본 API 8080) |
+| `npm run e2e:dashboard` | 대시보드 E2E만 실행 (API 8084, Agent 검증용) |
+
+**대시보드 접근·자산 API 404 검증** (React 직접 확인):
+
+1. 백엔드를 **8084**에서 기동 (`.env` 자동 로드): `investment-backend`에서 `.\scripts\bootRun-agent.ps1`
+2. **SUPER_ADMIN 계정으로 E2E 실행**: `investment-frontend`에서 `.\scripts\run-e2e-dashboard.ps1`  
+   - `investment-backend\.env`의 `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_PASSWORD`를 읽어 로그인 후 대시보드·자산 404 검증.
+   - **로그인 실패 시**: 8084 백엔드를 `.\scripts\bootRun-agent.ps1`로 **다시 기동**한 뒤 E2E 재실행 (동일 .env가 백엔드 기동 시 적용되어야 함).
+3. 수동으로 계정 지정: `$env:E2E_USERNAME="..."; $env:E2E_PASSWORD="..."; $env:E2E_API_PORT="8084"; npm run e2e -- e2e/dashboard.spec.ts`
+
+`E2E_USERNAME`/`E2E_PASSWORD`가 없으면 로그인 대시보드 테스트는 스킵되고, 나머지 E2E만 실행됩니다.
+
 ## Documentation
 
 프론트 전용 상세 문서는 `docs/`에 있습니다. 개발 시 참고하세요.

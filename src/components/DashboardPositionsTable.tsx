@@ -11,6 +11,7 @@ export interface DashboardPositionsTableProps {
 export function DashboardPositionsTable({ positions, maxRows = 5, title = "보유 잔고 (Top 5)" }: DashboardPositionsTableProps) {
   const slice = positions.slice(0, maxRows);
   const rows = slice.map((p) => [
+    p.market ?? "-",
     `${p.name || p.symbol}`,
     String(p.quantity ?? "-"),
     String(p.averagePrice ?? "-"),
@@ -21,7 +22,7 @@ export function DashboardPositionsTable({ positions, maxRows = 5, title = "보�
   return (
     <Card title={title}>
       <DataTable
-        headers={["종목", "수량", "평균단가", "현재가", "수익률"]}
+        headers={["시장", "종목", "수량", "평균단가", "현재가", "수익률"]}
         rows={rows}
         getRowKey={(_, i) => `position-${slice[i]?.symbol ?? i}`}
       />

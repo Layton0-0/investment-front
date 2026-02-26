@@ -715,6 +715,12 @@ export const Backtest = () => {
             {(mode === "robo" ? roboResult?.warningMessage : result?.warningMessage) && (
               <Guardrail type="warning" message={mode === "robo" ? roboResult!.warningMessage! : result!.warningMessage!} />
             )}
+            {displayResult && mode === "pipeline" && (!result?.trades || result.trades.length === 0) && (
+              <Guardrail
+                type="warning"
+                message="이번 기간에는 거래가 한 건도 발생하지 않았습니다. 선택한 기간에 일봉 데이터가 없거나, 전략이 매수/매도 신호를 내지 않았을 수 있습니다. 기간을 넓히거나 일봉 데이터 적재 여부를 확인해 보세요."
+              />
+            )}
             {displayResult && (
               <>
                 <div className="grid grid-cols-3 gap-4">
@@ -791,9 +797,19 @@ export const Backtest = () => {
                 String(t.returnPct ?? "-")
               ])}
             />
+          ) : result != null ? (
+            <div className="space-y-2 py-4">
+              <p className="text-sm font-medium text-foreground">거래 내역이 없습니다.</p>
+              <p className="text-sm text-muted-foreground">
+                가능한 원인: ① 선택한 기간에 일봉 데이터가 없음 ② 해당 기간에 전략이 매수/매도 신호를 내지 않음.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                기간을 넓히거나, 일봉 데이터 적재 여부를 확인한 뒤 다시 테스트를 실행해 보세요.
+              </p>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground py-4">
-              거래 내역이 없습니다. 기간 내 매매가 없거나 데이터가 없을 때 이렇게 표시됩니다.
+              테스트를 실행한 뒤 여기에 거래 내역이 표시됩니다.
             </p>
           )}
         </UICard>

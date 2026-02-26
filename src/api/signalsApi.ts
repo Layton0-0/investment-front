@@ -2,6 +2,8 @@ import { apiFetch } from "./http";
 
 export interface SignalScoreDto {
   basDt: string;
+  /** ISO-8601 시그널 생성 시각 (시간·밀리초 표시용) */
+  createdAt?: string;
   market: string;
   symbol: string;
   factorType: string;

@@ -20,7 +20,7 @@ export function AppHeader({ onOpenMobileMenu }: AppHeaderProps) {
   const auth = useAuth();
   const { serverType } = useAccountType();
 
-  const dashboardPath = `/dashboard?serverType=${serverType === "real" ? "0" : "1"}`;
+  const dashboardPath = "/dashboard";
 
   const handleLogout = () => {
     auth.logout();

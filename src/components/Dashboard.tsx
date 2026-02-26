@@ -22,6 +22,10 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
     realAssets,
     virtualPositions,
     realPositions,
+    virtualPositionsKr,
+    virtualPositionsUs,
+    realPositionsKr,
+    realPositionsUs,
     virtualRecentOrders,
     realRecentOrders,
     virtualPipelineSummary,
@@ -159,10 +163,15 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: DashboardProps
           />
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DashboardPositionsTable title="모의계좌 보유 종목" positions={virtualPositions} />
-        <DashboardPositionsTable title="실계좌 보유 종목" positions={realPositions} />
-      </div>
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-foreground">잔고 (국내 / 해외 별도)</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <DashboardPositionsTable title="모의계좌 국내 잔고" positions={virtualPositionsKr} />
+          <DashboardPositionsTable title="모의계좌 해외 잔고" positions={virtualPositionsUs} />
+          <DashboardPositionsTable title="실계좌 국내 잔고" positions={realPositionsKr} />
+          <DashboardPositionsTable title="실계좌 해외 잔고" positions={realPositionsUs} />
+        </div>
+      </section>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardOrdersTable title="모의계좌 최근 주문" orders={virtualRecentOrders} />
         <DashboardOrdersTable title="실계좌 최근 주문" orders={realRecentOrders} />

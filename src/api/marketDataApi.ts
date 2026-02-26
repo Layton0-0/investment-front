@@ -45,6 +45,27 @@ export interface DailyChartPointDto {
   volume?: number;
 }
 
+/** 종목 통합 검색 결과 한 건 */
+export interface SymbolSearchItemDto {
+  symbol?: string;
+  name?: string;
+  market?: string;
+}
+
+/**
+ * 종목 통합 검색. q 비면 전체(제한), market으로 KR/US 필터.
+ */
+export function searchSymbols(params: { q?: string; market?: string }) {
+  const search = new URLSearchParams();
+  if (params.q != null && params.q !== "") search.set("q", params.q);
+  if (params.market != null && params.market !== "") search.set("market", params.market);
+  const qs = search.toString();
+  return apiFetch<SymbolSearchItemDto[]>(
+    `/api/v1/market-data/symbols/search${qs ? `?${qs}` : ""}`,
+    { method: "GET" }
+  );
+}
+
 /**
  * 종목·시장·기간별 일봉 차트 데이터. 대시보드·포트폴리오 차트용. 최대 365일.
  */

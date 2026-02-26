@@ -41,15 +41,14 @@ export async function getAccountAssets(
   }
 }
 
-/** 보유 종목 조회. 404 시 빈 배열 반환. */
+/** 보유 종목 조회. market=KR(국내만), market=US(해외만), 미지정 시 국내+해외 병합. 404 시 빈 배열 반환. */
 export async function getPositions(
-  accountNo: string
+  accountNo: string,
+  market?: "KR" | "US"
 ): Promise<AccountPositionDto[]> {
   try {
-    return await apiFetch<AccountPositionDto[]>(
-      `/api/v1/accounts/${encodeURIComponent(accountNo)}/positions`,
-      { method: "GET" }
-    );
+    const path = `/api/v1/accounts/${encodeURIComponent(accountNo)}/positions${market ? `?market=${encodeURIComponent(market)}` : ""}`;
+    return await apiFetch<AccountPositionDto[]>(path, { method: "GET" });
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       return [];

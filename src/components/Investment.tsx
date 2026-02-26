@@ -30,6 +30,24 @@ import { Input } from "@/components/ui/input";
 type SummaryState = Partial<PipelineSummaryDto> & { accountNo?: string };
 type SignalWithMarket = SignalScoreDto & { market: string };
 
+/** 시그널 발생 시각을 yyyy.MM.dd HH:mm:ss.SSS 형식으로 포맷. createdAt 없으면 basDt만 반환 */
+function formatSignalTime(basDt: string | undefined, createdAt: string | undefined): string {
+  if (createdAt) {
+    const d = new Date(createdAt);
+    if (!Number.isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const M = String(d.getMonth() + 1).padStart(2, "0");
+      const D = String(d.getDate()).padStart(2, "0");
+      const h = String(d.getHours()).padStart(2, "0");
+      const m = String(d.getMinutes()).padStart(2, "0");
+      const s = String(d.getSeconds()).padStart(2, "0");
+      const ms = String(d.getMilliseconds()).padStart(3, "0");
+      return `${y}.${M}.${D} ${h}:${m}:${s}.${ms}`;
+    }
+  }
+  return basDt ?? "-";
+}
+
 export const AutoInvest = () => {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -160,7 +178,7 @@ export const AutoInvest = () => {
         <DataTable 
           headers={['시간', '시장', '종목', '전략', '시그널', '강도']}
           rows={signals.map((s) => [
-            String(s.basDt || "-"),
+            formatSignalTime(s.basDt, s.createdAt),
             String(s.market || "-"),
             String(s.symbol || "-"),
             String(s.factorType || "-"),

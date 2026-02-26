@@ -45,6 +45,7 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/auto-invest" element={<AutoInvestPage />} />
+          <Route path="/strategies" element={<Navigate to="/strategies/kr" replace />} />
           <Route path="/strategies/:market" element={<StrategyPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />

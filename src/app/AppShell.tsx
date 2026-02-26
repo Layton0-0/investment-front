@@ -79,7 +79,8 @@ export function AppShell() {
     location.pathname.startsWith("/strategies/") ||
     location.pathname === "/orders";
 
-  const linkTo = (path: string) => ({ pathname: path, search: `?serverType=${auth.serverType}` });
+  const linkTo = (path: string) =>
+    path === "/dashboard" ? { pathname: "/dashboard" } : { pathname: path, search: `?serverType=${auth.serverType}` };
 
   return (
     <div className="flex min-h-screen bg-background text-foreground" style={{ scrollbarGutter: "stable" }}>

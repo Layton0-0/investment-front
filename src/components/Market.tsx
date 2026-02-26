@@ -20,7 +20,7 @@ import { getPortfolioRiskMetrics, type PortfolioRiskMetricsDto } from "@/api/ris
 import type { OrderResponseDto } from "@/api/ordersApi";
 import { getSafeHref } from "@/utils/secureUrl";
 import { analyze, type AnalysisResponseDto } from "@/api/analysisApi";
-import { getCurrentPrice, type CurrentPriceDto } from "@/api/marketDataApi";
+import { getCurrentPrice, searchSymbols, type CurrentPriceDto, type SymbolSearchItemDto } from "@/api/marketDataApi";
 import {
   Dialog,
   DialogContent,
@@ -576,13 +576,98 @@ export const Portfolio = () => {
   );
 };
 
+/** 수동 주문용 종목 통합 검색 모달. 검색 후 선택 시 onSelect(symbol, name, market) 호출. */
+function StockSearchModal({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (symbol: string, name: string, market: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SymbolSearchItemDto[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setResults([]);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      setLoading(true);
+      searchSymbols({ q: query.trim() || undefined, market: "" })
+        .then((list) => setResults(list ?? []))
+        .catch(() => setResults([]))
+        .finally(() => setLoading(false));
+    }, query.trim() ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [open, query]);
+
+  const handleSelect = (item: SymbolSearchItemDto) => {
+    const symbol = item.symbol ?? "";
+    const name = item.name ?? symbol;
+    const market = item.market ?? "KR";
+    onSelect(symbol, name, market);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>종목 검색</DialogTitle>
+        </DialogHeader>
+        <input
+          type="text"
+          className="w-full border border-gray-300 p-2 text-sm rounded mb-2"
+          placeholder="종목명 또는 종목코드 검색..."
+          value={query}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+          autoFocus
+        />
+        <div className="flex-1 overflow-y-auto min-h-[200px] border border-gray-200 rounded">
+          {loading ? (
+            <p className="p-4 text-sm text-muted-foreground">검색 중…</p>
+          ) : results.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">검색어를 입력하거나 목록에서 종목을 선택하세요.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {results.map((item) => (
+                <li
+                  key={`${item.market ?? ""}-${item.symbol ?? ""}`}
+                  className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 flex justify-between items-center"
+                  onClick={() => handleSelect(item)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSelect(item)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className="font-medium">{item.name ?? item.symbol ?? "-"}</span>
+                  <span className="text-muted-foreground text-xs">{item.symbol} · {item.market ?? "KR"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export const Orders = () => {
   const auth = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accountNo, setAccountNo] = useState<string | null>(null);
   const [items, setItems] = useState<OrderResponseDto[]>([]);
+  /** 주문 시 사용할 종목 코드 (API 전달용) */
   const [orderSymbol, setOrderSymbol] = useState("");
+  /** 화면 표시용 종목 명칭 */
+  const [orderSymbolName, setOrderSymbolName] = useState("");
   const [orderType, setOrderType] = useState<"BUY" | "SELL">("BUY");
   const [orderQuantity, setOrderQuantity] = useState("");
   const [orderPrice, setOrderPrice] = useState("");
@@ -591,6 +676,7 @@ export const Orders = () => {
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [cancellingAll, setCancellingAll] = useState(false);
+  const [stockSearchOpen, setStockSearchOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -638,6 +724,7 @@ export const Orders = () => {
       await placeOrder(req);
       setOrderSuccess("주문 요청되었습니다.");
       setOrderSymbol("");
+      setOrderSymbolName("");
       setOrderQuantity("");
       setOrderPrice("");
       await load();
@@ -672,7 +759,19 @@ export const Orders = () => {
           <form onSubmit={handlePlaceOrder} className="grid grid-cols-2 md:grid-cols-6 gap-4 items-end">
             {orderSuccess && <div className="col-span-full text-sm text-green-600">{orderSuccess}</div>}
             {orderError && <div className="col-span-full text-sm text-red-600">{orderError}</div>}
-            <Input label="종목" value={orderSymbol} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderSymbol(e.target.value)} placeholder="005930" />
+            <div>
+              <label className="block text-[11px] font-bold text-[#8b95a1] uppercase mb-1">종목</label>
+              <button
+                type="button"
+                onClick={() => setStockSearchOpen(true)}
+                className="w-full border border-gray-300 p-2 text-sm rounded text-left bg-white hover:bg-gray-50 flex items-center justify-between"
+              >
+                <span className={orderSymbolName || orderSymbol ? "text-foreground" : "text-muted-foreground"}>
+                  {orderSymbolName || orderSymbol || "종목 검색 후 선택"}
+                </span>
+                <span className="text-xs text-muted-foreground">{orderSymbol ? `${orderSymbol} · ${orderMarket}` : ""}</span>
+              </button>
+            </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8b95a1] uppercase mb-1">구분</label>
               <select className="w-full border border-gray-300 p-2 text-sm rounded" value={orderType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrderType(e.target.value as "BUY" | "SELL")}>
@@ -691,6 +790,15 @@ export const Orders = () => {
             </div>
             <Button type="submit" disabled={placing}>주문</Button>
           </form>
+          <StockSearchModal
+            open={stockSearchOpen}
+            onOpenChange={setStockSearchOpen}
+            onSelect={(symbol, name, market) => {
+              setOrderSymbol(symbol);
+              setOrderSymbolName(name);
+              setOrderMarket(market);
+            }}
+          />
         </Card>
       )}
 

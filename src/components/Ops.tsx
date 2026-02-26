@@ -368,13 +368,52 @@ const HealthCard = ({ label, value, status }: HealthCardProps) => (
   </div>
 );
 
-function formatDateTimeForPipeline(iso: string | undefined): string {
-  if (!iso) return "-";
+/** Jenkins 호환 날짜/시간: YYYY-MM-DD HH:mm:ss */
+function formatDateTimeForPipeline(value: string | number | undefined): string {
+  if (value === undefined || value === null) return "-";
+  if (typeof value === "number") {
+    if (value === 0 || value < 0 || !Number.isFinite(value)) return "-";
+    if (value < 86400000) return "-";
+  }
   try {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
+    const d = new Date(value as string | number);
+    if (Number.isNaN(d.getTime())) return "-";
+    const y = d.getFullYear();
+    if (y < 1971 || y > 2100) return "-";
+    const M = String(d.getMonth() + 1).padStart(2, "0");
+    const D = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    return `${y}-${M}-${D} ${h}:${m}:${s}`;
   } catch {
-    return iso;
+    return "-";
+  }
+}
+
+/** Jenkins 호환 날짜: YYYY-MM-DD (최근 기준일 등). 8자리 숫자(YYYYMMDD) 또는 이미 YYYY-MM-DD 형식 수용 */
+function formatDateForPipeline(value: string | undefined): string {
+  if (value === undefined || value === null || String(value).trim() === "") return "-";
+  const raw = String(value).trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    const y = digits.slice(0, 4);
+    const m = digits.slice(4, 6);
+    const d = digits.slice(6, 8);
+    return `${y}-${m}-${d}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return raw;
+}
+
+/** 파이프라인 상태 → Jenkins 빌드 결과: OK→SUCCESS, WARNING→UNSTABLE, ERROR→FAILURE */
+function pipelineStatusToJenkinsStyle(status: string | undefined): string {
+  if (status === undefined || status === null || status === "") return "-";
+  switch (String(status).toUpperCase()) {
+    case "OK": return "SUCCESS";
+    case "WARNING": return "UNSTABLE";
+    case "ERROR": return "FAILURE";
+    default: return status;
   }
 }
 
@@ -660,8 +699,8 @@ const DataPipelineView = () => {
     pipeline?.sources?.map((s) => [
       s.displayName ?? s.sourceId ?? "-",
       formatDateTimeForPipeline(s.lastRunTime),
-      s.lastBaselineDate ?? "-",
-      s.status ?? "-",
+      formatDateForPipeline(s.lastBaselineDate),
+      pipelineStatusToJenkinsStyle(s.status),
       s.errorSummary ?? "-",
     ]) ?? [];
 
@@ -672,7 +711,7 @@ const DataPipelineView = () => {
         {error && <Guardrail type="error" message={error} />}
         {!loading && !error && (
           <DataTable
-            headers={["원천", "마지막 실행", "최근 기준일", "상태", "오류 요약"]}
+            headers={["원천", "마지막 빌드", "최근 기준일", "빌드 결과", "오류 요약"]}
             rows={sourceRows.length ? sourceRows : [["데이터 없음", "-", "-", "-", "-"]]}
           />
         )}
@@ -689,14 +728,8 @@ function triggerPathToSuffix(triggerPath: string | undefined): string | null {
   return triggerPath.slice(TRIGGER_PATH_PREFIX.length) || null;
 }
 
-function formatDateTime(iso: string | undefined): string {
-  if (!iso) return "-";
-  try {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
-  } catch {
-    return iso;
-  }
+function formatDateTime(value: string | number | undefined): string {
+  return formatDateTimeForPipeline(value);
 }
 
 export const Batch = ({ role }: { role: string }) => {
@@ -748,7 +781,7 @@ export const Batch = ({ role }: { role: string }) => {
       job.name ?? job.description ?? job.id ?? "-",
       job.cronDescription ?? job.cronExpression ?? "-",
       formatDateTime(job.lastExecutionTime),
-      job.status ?? "-",
+      job.lastExecutionResult ?? "-",
       action
     ];
   });
@@ -760,12 +793,12 @@ export const Batch = ({ role }: { role: string }) => {
       {error && <Guardrail type="error" message={error} />}
       <Card title="스케줄 현황 (Batch Jobs)">
         <DataTable
-          headers={["Job 이름", "스케줄", "마지막 실행", "상태", "지금 실행"]}
+          headers={["Job 이름", "스케줄", "마지막 빌드", "빌드 결과", "실행"]}
           rows={rows}
         />
       </Card>
       {!isAdmin && (
-        <p className="text-[10px] text-gray-400">※ "지금 실행" 권한은 운영자(Ops)에게만 부여됩니다.</p>
+        <p className="text-[10px] text-gray-400">※ 실행 권한은 운영자(Ops)에게만 부여됩니다.</p>
       )}
     </div>
   );

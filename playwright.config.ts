@@ -3,9 +3,13 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * E2E tests assume:
  * - Frontend: npm run dev (http://localhost:5173)
- * - Backend: optional for full flows; Vite proxies /api to localhost:8080
- * Run with: npm run e2e
+ * - Backend: optional for full flows. 기본 8080, E2E_API_PORT=8084 시 8084 사용(Agent 검증용).
+ * Run: npm run e2e
+ * Run with 8084 backend: E2E_API_PORT=8084 E2E_USERNAME=... E2E_PASSWORD=... npm run e2e
  */
+const apiPort = process.env.E2E_API_PORT || "8080";
+const apiBaseUrl = `http://localhost:${apiPort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -19,11 +23,11 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  /* Start frontend automatically when running e2e. If Vite fails (e.g. unresolved deps), run `npm run dev` in another terminal and then `npm run e2e`. */
   webServer: {
     command: "npm run dev",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    env: { ...process.env, VITE_API_BASE_URL: apiBaseUrl },
   },
 });

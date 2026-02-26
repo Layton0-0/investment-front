@@ -21,6 +21,11 @@ export interface UseDashboardDataResult {
   realAssets: AccountAssetDto | null;
   virtualPositions: AccountPositionDto[];
   realPositions: AccountPositionDto[];
+  /** 국내(KR) 잔고만 — 별도 API 호출 */
+  virtualPositionsKr: AccountPositionDto[];
+  virtualPositionsUs: AccountPositionDto[];
+  realPositionsKr: AccountPositionDto[];
+  realPositionsUs: AccountPositionDto[];
   virtualRecentOrders: OrderResponseDto[];
   realRecentOrders: OrderResponseDto[];
   virtualPipelineSummary: PipelineSummaryDto | null;
@@ -49,6 +54,10 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
   const [realAssets, setRealAssets] = useState<AccountAssetDto | null>(null);
   const [virtualPositions, setVirtualPositions] = useState<AccountPositionDto[]>([]);
   const [realPositions, setRealPositions] = useState<AccountPositionDto[]>([]);
+  const [virtualPositionsKr, setVirtualPositionsKr] = useState<AccountPositionDto[]>([]);
+  const [virtualPositionsUs, setVirtualPositionsUs] = useState<AccountPositionDto[]>([]);
+  const [realPositionsKr, setRealPositionsKr] = useState<AccountPositionDto[]>([]);
+  const [realPositionsUs, setRealPositionsUs] = useState<AccountPositionDto[]>([]);
   const [virtualRecentOrders, setVirtualRecentOrders] = useState<OrderResponseDto[]>([]);
   const [realRecentOrders, setRealRecentOrders] = useState<OrderResponseDto[]>([]);
   const [virtualPipelineSummary, setVirtualPipelineSummary] = useState<PipelineSummaryDto | null>(null);
@@ -99,6 +108,10 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
       setRealAssets(null);
       setVirtualPositions([]);
       setRealPositions([]);
+      setVirtualPositionsKr([]);
+      setVirtualPositionsUs([]);
+      setRealPositionsKr([]);
+      setRealPositionsUs([]);
       setVirtualRecentOrders([]);
       setRealRecentOrders([]);
       setVirtualPipelineSummary(null);
@@ -116,13 +129,16 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     const loadVirtual = virtualAccountNo
       ? Promise.all([
           getAccountAssets(virtualAccountNo),
-          getPositions(virtualAccountNo),
+          getPositions(virtualAccountNo, "KR"),
+          getPositions(virtualAccountNo, "US"),
           getOrders(virtualAccountNo),
           getPipelineSummary(virtualAccountNo),
           getSettingByAccountNo(virtualAccountNo)
-        ]).then(([assets, pos, orders, pipeline, setting]) => ({
+        ]).then(([assets, posKr, posUs, orders, pipeline, setting]) => ({
           assets,
-          positions: pos ?? [],
+          positionsKr: posKr ?? [],
+          positionsUs: posUs ?? [],
+          positions: [...(posKr ?? []), ...(posUs ?? [])],
           recentOrders: (orders ?? []).slice(0, 10),
           pipelineSummary: pipeline,
           tradingSetting: setting
@@ -132,13 +148,16 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     const loadReal = realAccountNo
       ? Promise.all([
           getAccountAssets(realAccountNo),
-          getPositions(realAccountNo),
+          getPositions(realAccountNo, "KR"),
+          getPositions(realAccountNo, "US"),
           getOrders(realAccountNo),
           getPipelineSummary(realAccountNo),
           getSettingByAccountNo(realAccountNo)
-        ]).then(([assets, pos, orders, pipeline, setting]) => ({
+        ]).then(([assets, posKr, posUs, orders, pipeline, setting]) => ({
           assets,
-          positions: pos ?? [],
+          positionsKr: posKr ?? [],
+          positionsUs: posUs ?? [],
+          positions: [...(posKr ?? []), ...(posUs ?? [])],
           recentOrders: (orders ?? []).slice(0, 10),
           pipelineSummary: pipeline,
           tradingSetting: setting
@@ -156,12 +175,16 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
         if (virtualData) {
           setVirtualAssets(virtualData.assets);
           setVirtualPositions(virtualData.positions);
+          setVirtualPositionsKr(virtualData.positionsKr);
+          setVirtualPositionsUs(virtualData.positionsUs);
           setVirtualRecentOrders(virtualData.recentOrders);
           setVirtualPipelineSummary(virtualData.pipelineSummary);
           setVirtualTradingSetting(virtualData.tradingSetting);
         } else {
           setVirtualAssets(null);
           setVirtualPositions([]);
+          setVirtualPositionsKr([]);
+          setVirtualPositionsUs([]);
           setVirtualRecentOrders([]);
           setVirtualPipelineSummary(null);
           setVirtualTradingSetting(null);
@@ -169,12 +192,16 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
         if (realData) {
           setRealAssets(realData.assets);
           setRealPositions(realData.positions);
+          setRealPositionsKr(realData.positionsKr);
+          setRealPositionsUs(realData.positionsUs);
           setRealRecentOrders(realData.recentOrders);
           setRealPipelineSummary(realData.pipelineSummary);
           setRealTradingSetting(realData.tradingSetting);
         } else {
           setRealAssets(null);
           setRealPositions([]);
+          setRealPositionsKr([]);
+          setRealPositionsUs([]);
           setRealRecentOrders([]);
           setRealPipelineSummary(null);
           setRealTradingSetting(null);
@@ -205,6 +232,10 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     realAssets,
     virtualPositions,
     realPositions,
+    virtualPositionsKr,
+    virtualPositionsUs,
+    realPositionsKr,
+    realPositionsUs,
     virtualRecentOrders,
     realRecentOrders,
     virtualPipelineSummary,

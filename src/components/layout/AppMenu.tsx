@@ -128,6 +128,7 @@ export function AppMenu({ isOps = false, mobileOpen = false, onMobileOpenChange 
   const { serverType } = useAccountType();
 
   const getPathWithQuery = (path: string) => {
+    if (path === "/dashboard") return "/dashboard";
     return `${path}?serverType=${serverType === "real" ? "0" : "1"}`;
   };
 

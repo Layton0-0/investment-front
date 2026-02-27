@@ -9,11 +9,13 @@ import {
   activateStrategy,
   getStrategies,
   getStrategy,
+  getStrategyComparison,
   stopStrategy,
   createOrUpdateStrategy,
   updateStrategyStatus,
   isStrategyEnabled,
   type StrategyDto,
+  type StrategyComparisonItemDto,
   type StrategyStatus,
 } from "@/api/strategyApi";
 import type { PipelineSummaryDto } from "@/api/pipelineApi";
@@ -458,6 +460,7 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<StrategyDto[]>([]);
+  const [comparison, setComparison] = useState<StrategyComparisonItemDto[]>([]);
   const [mainAccountNo, setMainAccountNo] = useState<string | null>(null);
 
   const [detailOpen, setDetailOpen] = useState(false);
@@ -489,9 +492,13 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
         if (!main || !mounted) return;
         setMainAccountNo(main.accountNo);
-        const list = await getStrategies(main.accountNo, apiMarket);
+        const [list, comp] = await Promise.all([
+          getStrategies(main.accountNo, apiMarket),
+          getStrategyComparison(apiMarket).catch(() => []),
+        ]);
         if (!mounted) return;
         setItems(list ?? []);
+        setComparison(Array.isArray(comp) ? comp : []);
       } catch (e: unknown) {
         if (!mounted) return;
         setError(e instanceof Error ? e.message : "전략 목록 조회에 실패했습니다.");
@@ -577,8 +584,30 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
     setFormError(null);
   };
 
+  const comparisonHeaders = ["시장", "전략", "CAGR (%)", "MDD (%)", "Sharpe", "최근 실행"];
+  const comparisonRows: React.ReactNode[][] = comparison.map((r) => [
+    r.market,
+    r.description,
+    r.cagr != null ? Number(r.cagr).toFixed(2) : "-",
+    r.mddPct != null ? Number(r.mddPct).toFixed(2) : "-",
+    r.sharpeRatio != null ? Number(r.sharpeRatio).toFixed(2) : "-",
+    r.lastRunAt ? new Date(r.lastRunAt).toLocaleString("ko-KR") : "-",
+  ]);
+
   return (
     <div className="space-y-6">
+      {comparison.length > 0 && (
+        <Card title="전략 비교 (백테스트 메트릭)">
+          <p className="text-xs text-muted-foreground mb-3">
+            거버넌스 검사로 저장된 최신 백테스트 결과입니다. CAGR는 추후 반영됩니다.
+          </p>
+          <DataTable
+            headers={comparisonHeaders}
+            rows={comparisonRows}
+            getRowKey={(_, i) => comparison[i] ? `${comparison[i].market}-${comparison[i].strategyType}` : String(i)}
+          />
+        </Card>
+      )}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-bold uppercase">
           {market === "kr" ? "국내" : "미국"} 전략 목록

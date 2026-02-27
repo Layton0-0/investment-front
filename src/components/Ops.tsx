@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
+import { Switch } from "@/components/ui/switch";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
-import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto } from "@/api/opsApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -30,6 +31,8 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
         return <AuditView />;
       case 'governance':
         return <GovernanceView />;
+      case 'settings':
+        return <SystemSettingsView />;
       default:
         return <div>Select an Ops page</div>;
     }
@@ -43,6 +46,7 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
     model: "모델/예측",
     audit: "감사 로그",
     governance: "전략 거버넌스",
+    settings: "시스템 설정",
   };
   const dataPipelineLabel = subPageLabels[subPage] ?? `Ops: ${subPage.toUpperCase()}`;
   return (
@@ -592,6 +596,127 @@ const GovernanceView = () => {
           headers={["시장", "전략 유형", "중단 시각", "사유", "조치"]}
           rows={haltRows.length ? haltRows : [["없음", "-", "-", "-", "-"]]}
         />
+      </Card>
+    </div>
+  );
+};
+
+/** 시스템 설정: GET/PUT /api/v1/system/settings (ADMIN 전용) */
+const SystemSettingsView = () => {
+  const [items, setItems] = useState<SystemSettingItemDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const fetchSettings = React.useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSystemSettings()
+      .then((list) => setItems(list ?? []))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "시스템 설정 조회에 실패했습니다.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const effective = (item: SystemSettingItemDto) =>
+    dirty[item.key ?? ""] !== undefined ? dirty[item.key ?? ""] : (item.effectiveValue ?? "");
+
+  const handleSave = (key: string, value: string) => {
+    setSaving(key);
+    putSystemSetting(key, value)
+      .then(() => {
+        setDirty((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        return getSystemSettings();
+      })
+      .then((list) => setItems(list ?? []))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+      })
+      .finally(() => setSaving(null));
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="info" message="시스템 설정 로딩 중…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Guardrail type="error" message={error} />
+      </div>
+    );
+  }
+
+  const pipelineItems = items.filter((i) => (i.key ?? "").startsWith("pipeline."));
+
+  return (
+    <div className="space-y-6">
+      <Card title="파이프라인 (서버 기본값)">
+        <p className="text-sm text-gray-600 mb-4">
+          계정별 설정이 없을 때 사용되는 서버 기본값입니다. DB에 저장되며, 변경 후 캐시는 5분 이내 갱신됩니다.
+        </p>
+        <div className="space-y-4">
+          {pipelineItems.map((item) => {
+            const key = item.key ?? "";
+            const type = item.type ?? "String";
+            const desc = item.description ?? key;
+            const val = effective(item);
+            const isBool = type === "Boolean";
+            const isNum = type === "BigDecimal";
+            return (
+              <div key={key} className="flex flex-wrap items-center gap-4 border-b border-gray-100 pb-3 last:border-0">
+                <div className="min-w-[200px]">
+                  <div className="font-medium text-sm">{desc}</div>
+                  <div className="text-xs text-gray-500">{key}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isBool ? (
+                    <>
+                      <Switch
+                        checked={val === "true"}
+                        onCheckedChange={(checked) => setDirty((prev) => ({ ...prev, [key]: checked ? "true" : "false" }))}
+                      />
+                      <span className="text-sm">{val === "true" ? "ON" : "OFF"}</span>
+                    </>
+                  ) : isNum ? (
+                    <input
+                      type="number"
+                      className="border border-gray-300 rounded px-2 py-1 w-32 text-sm"
+                      value={dirty[key] !== undefined ? dirty[key] : val}
+                      onChange={(e) => setDirty((prev) => ({ ...prev, [key]: e.target.value }))}
+                    />
+                  ) : (
+                    <span className="text-sm font-mono">{val || "(비어 있음)"}</span>
+                  )}
+                  <Button
+                    variant="secondary"
+                    className="text-xs py-1"
+                    disabled={saving !== null || dirty[key] === undefined}
+                    onClick={() => handleSave(key, dirty[key] ?? val)}
+                  >
+                    {saving === key ? "저장 중…" : "저장"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {pipelineItems.length === 0 && (
+          <p className="text-sm text-gray-500">표시할 시스템 설정이 없습니다.</p>
+        )}
       </Card>
     </div>
   );

@@ -162,6 +162,23 @@ export interface GovernanceHaltDto {
   reason?: string;
 }
 
+/** 자동매매 준비 상태 (GET /api/v1/ops/auto-trading-readiness, 09:10 전 점검용) */
+export interface AutoTradingReadinessDto {
+  basDt?: string;
+  autoTradingOnAccountCount?: number;
+  dailyStockRowCount?: number;
+  signalScoreRowCount?: number;
+  activeGovernanceHaltCount?: number;
+}
+
+/**
+ * 자동매매 준비 상태 조회.
+ * GET /api/v1/ops/auto-trading-readiness (ADMIN 전용)
+ */
+export function getAutoTradingReadiness(): Promise<AutoTradingReadinessDto> {
+  return apiFetch<AutoTradingReadinessDto>("/api/v1/ops/auto-trading-readiness", { method: "GET" });
+}
+
 /**
  * 전략 거버넌스 최근 검사 결과 조회.
  * GET /api/v1/ops/governance/results (ADMIN 전용)
@@ -196,4 +213,33 @@ export function clearGovernanceHalt(
     `/api/v1/ops/governance/halts/${encodeURIComponent(market)}/${encodeURIComponent(strategyType)}/clear`,
     { method: "PUT", body: body != null ? JSON.stringify(body) : undefined }
   );
+}
+
+/** 시스템 설정 한 건 (GET /api/v1/system/settings 응답 항목) */
+export interface SystemSettingItemDto {
+  key?: string;
+  type?: string;
+  description?: string;
+  valueFromDb?: string | null;
+  effectiveValue?: string;
+}
+
+/**
+ * 시스템 설정 목록 조회.
+ * GET /api/v1/system/settings (ADMIN 전용)
+ */
+export function getSystemSettings(): Promise<SystemSettingItemDto[]> {
+  return apiFetch<SystemSettingItemDto[]>("/api/v1/system/settings", { method: "GET" });
+}
+
+/**
+ * 시스템 설정 1건 수정.
+ * PUT /api/v1/system/settings (ADMIN 전용)
+ */
+export function putSystemSetting(key: string, value: string): Promise<SystemSettingItemDto> {
+  return apiFetch<SystemSettingItemDto>("/api/v1/system/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
 }

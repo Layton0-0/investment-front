@@ -29,6 +29,25 @@ export interface StrategyStatusUpdateDto {
   status: StrategyStatus;
 }
 
+/** 전략 비교 항목 (백테스트 메트릭) */
+export interface StrategyComparisonItemDto {
+  market: string;
+  strategyType: string;
+  description: string;
+  cagr: number | null;
+  mddPct: number | null;
+  sharpeRatio: number | null;
+  lastRunAt: string | null;
+}
+
+export function getStrategyComparison(market?: "KR" | "US") {
+  const qs = market ? `?market=${encodeURIComponent(market)}` : "";
+  return apiFetch<StrategyComparisonItemDto[]>(
+    `/api/v1/strategies/comparison${qs}`,
+    { method: "GET" }
+  );
+}
+
 /** 표시용: 활성 여부 (status === 'ACTIVE') */
 export function isStrategyEnabled(s: StrategyDto): boolean {
   return s.status === "ACTIVE";

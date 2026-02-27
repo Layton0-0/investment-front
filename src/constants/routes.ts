@@ -24,7 +24,8 @@ export const ROUTES = {
   OPS_MODEL: "/ops/model",
   OPS_AUDIT: "/ops/audit",
   OPS_HEALTH: "/ops/health",
-  OPS_GOVERNANCE: "/ops/governance"
+  OPS_GOVERNANCE: "/ops/governance",
+  OPS_SETTINGS: "/ops/settings"
 } as const;
 
 /** Dashboard quick-nav: ordered labels and path map */

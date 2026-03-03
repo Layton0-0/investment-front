@@ -27,13 +27,24 @@ export class ApiError extends Error {
   }
 }
 
-/** 기본 백엔드 포트 8080 (로컬·배포 통일). */
-const DEFAULT_API_BASE_URL = "http://localhost:8080";
+/** 로컬 개발 시 사용할 백엔드 기본 URL. */
+const LOCAL_API_BASE_URL = "http://localhost:8080";
 
+/**
+ * API Base URL 결정 (환경 자동 감지).
+ * - VITE_API_BASE_URL 이 있으면 그대로 사용 (빌드 시 지정).
+ * - 없으면: 브라우저 origin 이 localhost/127.0.0.1 이면 로컬 8080, 아니면 현재 origin (배포 환경·동일 호스트 API).
+ * 이렇게 하면 한 번 빌드로 로컬·배포 모두 사용 가능.
+ */
 function getApiBaseUrl(): string {
   const env = import.meta.env?.VITE_API_BASE_URL;
   if (env !== undefined && env !== "") return env;
-  return DEFAULT_API_BASE_URL;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") return LOCAL_API_BASE_URL;
+    return window.location.origin;
+  }
+  return LOCAL_API_BASE_URL;
 }
 
 /** Called on 401 (e.g. JWT invalid/expired). Set by app to logout + redirect to login. */

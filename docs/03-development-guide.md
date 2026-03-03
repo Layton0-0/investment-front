@@ -19,13 +19,13 @@ npm run dev
 ### API 연동(개발 시)
 
 - **권장**: Vite proxy 사용. `vite.config.ts`에서 `/api`를 백엔드(예: 8080)로 프록시하면 같은 오리진으로 쿠키가 전송됩니다.
-- **대안**: `VITE_API_BASE_URL`로 백엔드 URL 직접 지정. 크로스 오리진이면 CORS·credentials 설정이 백엔드에 필요합니다.
+- **환경 자동 감지**: `VITE_API_BASE_URL`을 넣지 않으면, 접속한 origin에 따라 API 주소를 자동 선택합니다. 로컬(localhost/127.0.0.1) → `http://localhost:8080`, 그 외(배포 도메인) → 현재 origin. 따라서 **한 번 빌드로 로컬·배포 공용**으로 쓸 수 있습니다. 필요 시에만 `VITE_API_BASE_URL`로 고정 지정.
 
 ## 2. 환경 변수
 
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
-| `VITE_API_BASE_URL` | 백엔드 API Base URL (미설정 시 8080) | `http://localhost:8080` |
+| `VITE_API_BASE_URL` | 백엔드 API Base URL. 미설정 시 **자동**: 로컬이면 8080, 배포면 현재 origin | (자동) |
 | `VITE_BASE_URL` | 라우터 base (배포 시 서브경로 등) | (선택) |
 
 - `.env` 또는 `.env.local`에 설정(커밋 제외). 클라이언트에는 `VITE_` 접두사가 붙은 변수만 노출됩니다.

@@ -660,64 +660,94 @@ const SystemSettingsView = () => {
     );
   }
 
-  const pipelineItems = items.filter((i) => (i.key ?? "").startsWith("pipeline."));
+  const groupLabels: Record<string, string> = {
+    pipeline: "파이프라인",
+    governance: "거버넌스",
+    batch: "배치",
+    risk: "리스크",
+    intraday: "장중 변동성 돌파",
+  };
+  const groupOrder = ["pipeline", "governance", "batch", "risk", "intraday"];
+  const getGroup = (key: string) => {
+    const prefix = key.split(".")[0] ?? "";
+    return groupOrder.includes(prefix) ? prefix : "other";
+  };
+  const grouped = items.reduce<Record<string, SystemSettingItemDto[]>>((acc, item) => {
+    const k = item.key ?? "";
+    const g = getGroup(k);
+    if (!acc[g]) acc[g] = [];
+    acc[g].push(item);
+    return acc;
+  }, {});
+
+  const renderRow = (item: SystemSettingItemDto) => {
+    const key = item.key ?? "";
+    const type = item.type ?? "String";
+    const desc = item.description ?? key;
+    const val = effective(item);
+    const isBool = type === "Boolean";
+    const isNum = type === "BigDecimal";
+    return (
+      <div key={key} className="flex flex-wrap items-center gap-4 border-b border-gray-100 pb-3 last:border-0">
+        <div className="min-w-[200px]">
+          <div className="font-medium text-sm">{desc}</div>
+          <div className="text-xs text-gray-500">{key}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isBool ? (
+            <>
+              <Switch
+                checked={val === "true"}
+                onCheckedChange={(checked) => setDirty((prev) => ({ ...prev, [key]: checked ? "true" : "false" }))}
+              />
+              <span className="text-sm">{val === "true" ? "ON" : "OFF"}</span>
+            </>
+          ) : isNum ? (
+            <input
+              type="number"
+              className="border border-gray-300 rounded px-2 py-1 w-32 text-sm"
+              value={dirty[key] !== undefined ? dirty[key] : val}
+              onChange={(e) => setDirty((prev) => ({ ...prev, [key]: e.target.value }))}
+            />
+          ) : (
+            <span className="text-sm font-mono">{val || "(비어 있음)"}</span>
+          )}
+          <Button
+            variant="secondary"
+            className="text-xs py-1"
+            disabled={saving !== null || dirty[key] === undefined}
+            onClick={() => handleSave(key, dirty[key] ?? val)}
+          >
+            {saving === key ? "저장 중…" : "저장"}
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      <Card title="파이프라인 (서버 기본값)">
-        <p className="text-sm text-gray-600 mb-4">
-          계정별 설정이 없을 때 사용되는 서버 기본값입니다. DB에 저장되며, 변경 후 캐시는 5분 이내 갱신됩니다.
-        </p>
-        <div className="space-y-4">
-          {pipelineItems.map((item) => {
-            const key = item.key ?? "";
-            const type = item.type ?? "String";
-            const desc = item.description ?? key;
-            const val = effective(item);
-            const isBool = type === "Boolean";
-            const isNum = type === "BigDecimal";
-            return (
-              <div key={key} className="flex flex-wrap items-center gap-4 border-b border-gray-100 pb-3 last:border-0">
-                <div className="min-w-[200px]">
-                  <div className="font-medium text-sm">{desc}</div>
-                  <div className="text-xs text-gray-500">{key}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isBool ? (
-                    <>
-                      <Switch
-                        checked={val === "true"}
-                        onCheckedChange={(checked) => setDirty((prev) => ({ ...prev, [key]: checked ? "true" : "false" }))}
-                      />
-                      <span className="text-sm">{val === "true" ? "ON" : "OFF"}</span>
-                    </>
-                  ) : isNum ? (
-                    <input
-                      type="number"
-                      className="border border-gray-300 rounded px-2 py-1 w-32 text-sm"
-                      value={dirty[key] !== undefined ? dirty[key] : val}
-                      onChange={(e) => setDirty((prev) => ({ ...prev, [key]: e.target.value }))}
-                    />
-                  ) : (
-                    <span className="text-sm font-mono">{val || "(비어 있음)"}</span>
-                  )}
-                  <Button
-                    variant="secondary"
-                    className="text-xs py-1"
-                    disabled={saving !== null || dirty[key] === undefined}
-                    onClick={() => handleSave(key, dirty[key] ?? val)}
-                  >
-                    {saving === key ? "저장 중…" : "저장"}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {pipelineItems.length === 0 && (
-          <p className="text-sm text-gray-500">표시할 시스템 설정이 없습니다.</p>
-        )}
-      </Card>
+      <p className="text-sm text-gray-600">
+        활성/비활성 등 서버 전역 설정입니다. DB에 저장되며, 변경 후 캐시는 5분 이내 갱신됩니다.
+      </p>
+      {groupOrder.map((groupKey) => {
+        const groupItems = grouped[groupKey];
+        if (!groupItems?.length) return null;
+        const title = groupLabels[groupKey] ?? groupKey;
+        return (
+          <Card key={groupKey} title={title}>
+            <div className="space-y-4">{groupItems.map(renderRow)}</div>
+          </Card>
+        );
+      })}
+      {grouped.other?.length ? (
+        <Card title="기타">
+          <div className="space-y-4">{grouped.other.map(renderRow)}</div>
+        </Card>
+      ) : null}
+      {items.length === 0 && (
+        <p className="text-sm text-gray-500">표시할 시스템 설정이 없습니다.</p>
+      )}
     </div>
   );
 };

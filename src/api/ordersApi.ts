@@ -17,6 +17,8 @@ export interface OrderResponseDto {
   signalType?: string | null;
   /** 거래 사유: 청산 규칙 유형 (파이프라인 매도 시) */
   exitRuleType?: string | null;
+  /** 매매 사유 한글 평문 설명 (초보자 친화) */
+  explanation?: string | null;
 }
 
 /** 주문 목록 조회. 404 시 빈 배열 반환. */

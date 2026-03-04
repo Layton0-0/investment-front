@@ -1,6 +1,7 @@
 # 프론트엔드 아키텍처 요약
 
-- **퍼블리싱**: smart-portfolio-pal 디자인 참고. 랜딩(/) 추가, 로그인·대시보드·사이드바 재구성. 라우트: `/` = 랜딩(비로그인), `/dashboard` = 메인 홈(인증 후), `/login`, `/signup` 등 유지.
+- **퍼블리싱**: smart-portfolio-pal 디자인 기준. 국내/미국 포함 전체 화면이 해당 프로젝트 퍼블 기준으로 적용됨. 디자인 토큰(HSL·차트 시장별)·레이아웃(AppLayout·AppMenu·AccountTabs)·메뉴 순서·라우트는 smart-portfolio-pal과 일치. 라우트: `/` = 랜딩(비로그인), `/dashboard` = 메인 홈(인증 후), `/login`, `/signup` 등 유지.
+- **smart-portfolio-pal 서브모듈**: 읽기 전용 참조. 이 저장소에서 수정한 내용은 smart-portfolio-pal에 반영하지 않음. 참조만 하고 변경은 investment-frontend 등 적용 대상에만 반영.
 
 ## 1. 폴더 구조
 

@@ -88,3 +88,24 @@ export function updateSetting(
   );
 }
 
+/** 원클릭 자동투자 시작 요청 */
+export interface QuickStartRequestDto {
+  maxInvestmentAmount: number;
+  accountNo?: string;
+}
+
+/** 원클릭 자동투자 시작 응답 */
+export interface QuickStartResponseDto {
+  success: boolean;
+  message: string;
+  setting?: TradingSettingDto;
+}
+
+/** 원클릭 자동투자 시작. 초보자 디폴트(autoTradingEnabled=true, pipelineAutoExecute=true) 적용. */
+export function quickStart(body: QuickStartRequestDto): Promise<QuickStartResponseDto> {
+  return apiFetch<QuickStartResponseDto>("/api/v1/settings/quick-start", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+

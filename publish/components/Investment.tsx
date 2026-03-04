@@ -55,7 +55,6 @@ export const AutoInvest = () => {
         />
       </Card>
 
-      <Guardrail message="신규 매수 축소/중단: 리스크 게이트 발동 (일일 손실 한도 근접)" type="error" />
     </div>
   );
 };

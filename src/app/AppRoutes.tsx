@@ -20,6 +20,7 @@ import { MyPage } from "@/pages/MyPage";
 import { OpsPage } from "@/pages/OpsPage";
 import TaxReportPage from "@/pages/app/TaxReportPage";
 import DashboardPage from "@/pages/app/DashboardPage";
+import OnboardingPage from "@/pages/app/OnboardingPage";
 import { useAuth } from "./AuthContext";
 
 export function AppRoutes() {
@@ -44,6 +45,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/auto-invest" element={<AutoInvestPage />} />
           <Route path="/strategies" element={<Navigate to="/strategies/kr" replace />} />
           <Route path="/strategies/:market" element={<StrategyPage />} />
@@ -60,6 +62,7 @@ export function AppRoutes() {
           <Route path="/ops/alerts" element={<OpsPage />} />
           <Route path="/ops/model" element={<OpsPage />} />
           <Route path="/ops/audit" element={<OpsPage />} />
+          <Route path="/ops/trade-journal" element={<OpsPage />} />
           <Route path="/ops/health" element={<OpsPage />} />
           <Route path="/ops/governance" element={<OpsPage />} />
           <Route path="/ops/settings" element={<OpsPage />} />

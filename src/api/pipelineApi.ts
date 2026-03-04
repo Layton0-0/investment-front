@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from "./http";
+import type { SignalScoreDto } from "./signalsApi";
 
 /** 보유 포지션 1건 (자동투자 현황 4단계) */
 export interface OpenPositionItemDto {
@@ -12,6 +13,10 @@ export interface OpenPositionItemDto {
   signalType?: string | null;
   /** 거래 사유: 청산 규칙 유형 */
   exitRuleType?: string | null;
+  /** 현재가 (백엔드 보강 시) */
+  currentPrice?: number | null;
+  /** 손익률 % (백엔드 보강 시) */
+  pnlPercent?: number | null;
 }
 
 export interface PipelineSummaryDto {
@@ -23,7 +28,15 @@ export interface PipelineSummaryDto {
   signalCountUs?: number;
   openPositionCount?: number;
   allocationSummary?: string;
+  /** 3단계 자금 배분 비율 문자열 (예: 단기 40% / 중기 35% / 장기 25%) */
+  allocationRatioSummary?: string;
+  /** 2단계 시그널 목록 KR (summary 한 번에 내려옴) */
+  signalListKr?: SignalScoreDto[];
+  /** 2단계 시그널 목록 US */
+  signalListUs?: SignalScoreDto[];
   openPositionList?: OpenPositionItemDto[];
+  /** 파이프라인 마지막 실행 시각 (ISO 8601). 없으면 null */
+  lastRunAt?: string | null;
 }
 
 /** 파이프라인 요약 조회. 404/실패 시 null 반환. */

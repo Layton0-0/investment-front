@@ -110,7 +110,6 @@ export const Dashboard = ({ serverType, hasAccount, onNavigate }: any) => {
         </Card>
       </div>
 
-      <Guardrail message="현재 서버는 Dry-Run 모드입니다. 실제 주문은 서버 설정(PIPELINE_AUTO_EXECUTE)이 필요합니다." type="info" />
     </div>
   );
 };

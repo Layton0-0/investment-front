@@ -72,6 +72,8 @@ export interface AuditLogItemDto {
   summary?: string;
   result?: string;
   ipAddress?: string;
+  /** 트레이드 결정 상세 (TRADE_DECISION 시 JSON 문자열) */
+  detailJson?: string | null;
 }
 
 /** 감사 로그 목록 페이징 응답 */
@@ -103,6 +105,28 @@ export function getAuditLogs(params?: {
   const qs = sp.toString();
   return apiFetch<AuditLogListResponseDto>(
     `/api/v1/ops/audit${qs ? `?${qs}` : ""}`,
+    { method: "GET" }
+  );
+}
+
+/**
+ * 트레이드 저널(매매 결정 내역) 조회.
+ * GET /api/v1/ops/trade-journal (ADMIN 전용)
+ */
+export function getTradeJournal(params?: {
+  page?: number;
+  size?: number;
+  from?: string;
+  to?: string;
+}): Promise<AuditLogListResponseDto> {
+  const sp = new URLSearchParams();
+  if (params?.page != null) sp.set("page", String(params.page));
+  if (params?.size != null) sp.set("size", String(params.size));
+  if (params?.from != null && params.from !== "") sp.set("from", params.from);
+  if (params?.to != null && params.to !== "") sp.set("to", params.to);
+  const qs = sp.toString();
+  return apiFetch<AuditLogListResponseDto>(
+    `/api/v1/ops/trade-journal${qs ? `?${qs}` : ""}`,
     { method: "GET" }
   );
 }

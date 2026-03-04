@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,10 +55,14 @@ import {
   CartesianGrid,
 } from "recharts";
 
+export type SettingsProfileMode = "beginner" | "intermediate" | "advanced";
+
 export interface SettingsProps {
   serverType: ServerType;
   onToggleAutoTrade?: () => void;
   isAutoTradeOn?: boolean;
+  /** 설정 보기 모드. 초보자=최소 항목, 중급자=+비중/손절/리밸런싱, 고급=전체 */
+  settingsProfileMode?: SettingsProfileMode;
 }
 
 const defaultCurrency = "KRW";
@@ -76,7 +81,7 @@ const emptyAccountForm = (): AccountFormState => ({
   currentPassword: "",
 });
 
-export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: SettingsProps) => {
+export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, settingsProfileMode = "beginner" }: SettingsProps) => {
   const auth = useAuth();
   const { data: accountsData, loading: accountsLoading, error: accountsError, save: saveAccounts, refetch: refetchAccounts } = useSettingsAccountsAll();
   const [info, setInfo] = useState<string | null>(null);
@@ -227,18 +232,26 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
     }
   };
 
-  const buildTradingDto = (autoOn: boolean): TradingSettingDto => ({
-    maxInvestmentAmount: Number(maxInvestmentAmount) || 10000000,
-    minInvestmentAmount: undefined,
-    defaultCurrency,
-    autoTradingEnabled: autoOn,
-    roboAdvisorEnabled: false,
-    shortTermRatio: undefined,
-    mediumTermRatio: undefined,
-    longTermRatio: undefined,
-    pipelineAutoExecute: autoOn,
-    pipelineAllowRealExecution: pipelineAllowRealExecution,
-  });
+  const buildTradingDto = (autoOn: boolean): TradingSettingDto => {
+    const dto: TradingSettingDto = {
+      maxInvestmentAmount: Number(maxInvestmentAmount) || 10000000,
+      defaultCurrency,
+      autoTradingEnabled: autoOn,
+      pipelineAutoExecute: autoOn,
+      pipelineAllowRealExecution: pipelineAllowRealExecution,
+    };
+    if (settingsProfileMode === "intermediate" || settingsProfileMode === "advanced") {
+      dto.shortTermRatio = shortTermRatio;
+      dto.mediumTermRatio = mediumTermRatio;
+      dto.longTermRatio = longTermRatio;
+    }
+    if (settingsProfileMode === "advanced") {
+      dto.minInvestmentAmount = Number(minInvestmentAmount) || undefined;
+      dto.roboAdvisorEnabled = roboAdvisorEnabled;
+      dto.pipelineAutoExecute = pipelineAutoExecute;
+    }
+    return dto;
+  };
 
   const handleSaveTrading = async () => {
     setSaveError(null);
@@ -521,6 +534,109 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: Setti
                   />
                 </div>
 
+                {settingsProfileMode === "beginner" && (
+                  <div className="rounded-lg border border-border p-4 bg-muted/20">
+                    <p className="font-medium">위험 성향</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      온보딩에서 설정한 비율(단기/중기/장기)이 적용됩니다. 변경하려면 <Link to="/onboarding" className="text-primary underline">온보딩</Link>을 다시 진행하거나, 위에서 중급자·고급 모드로 전환해 비율을 설정하세요.
+                    </p>
+                  </div>
+                )}
+
+                {(settingsProfileMode === "intermediate" || settingsProfileMode === "advanced") && (
+                  <>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">단기 비율</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={shortTermRatio}
+                          onChange={(e) => setShortTermRatio(Number(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">중기 비율</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={mediumTermRatio}
+                          onChange={(e) => setMediumTermRatio(Number(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">장기 비율</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={longTermRatio}
+                          onChange={(e) => setLongTermRatio(Number(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                    {settingsProfileMode === "intermediate" && (
+                      <p className="text-sm text-muted-foreground">
+                        손절·리밸런싱: 시스템 기본값(월 1회 리밸런싱, 전략별 손절 규칙 적용)이 적용됩니다.
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {settingsProfileMode === "advanced" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">최소 투자금액 (원)</Label>
+                      <Input
+                        type="number"
+                        value={minInvestmentAmount}
+                        onChange={(e) => setMinInvestmentAmount(e.target.value)}
+                        placeholder="100000"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
+                      <div>
+                        <p className="font-medium">파이프라인 자동 실행</p>
+                        <p className="text-sm text-muted-foreground">시그널에 따라 파이프라인을 자동 실행합니다.</p>
+                      </div>
+                      <Switch
+                        checked={pipelineAutoExecute}
+                        onCheckedChange={(v) => setPipelineAutoExecute(!!v)}
+                        disabled={!currentTradingAccountNo}
+                      />
+                    </div>
+                    {tradingTabType === 0 && (
+                      <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
+                        <div>
+                          <p className="font-medium">실계좌 자동 실행 허용</p>
+                          <p className="text-sm text-muted-foreground">실제 주문이 나가므로 신중히 설정하세요.</p>
+                        </div>
+                        <Switch
+                          checked={pipelineAllowRealExecution ?? false}
+                          onCheckedChange={(v) => setPipelineAllowRealExecution(!!v)}
+                          disabled={!currentTradingAccountNo}
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
+                      <div>
+                        <p className="font-medium">로보 어드바이저 (ETF)</p>
+                        <p className="text-sm text-muted-foreground">ETF 기반 로보 어드바이저 전략 사용 여부.</p>
+                      </div>
+                      <Switch
+                        checked={roboAdvisorEnabled}
+                        onCheckedChange={(v) => setRoboAdvisorEnabled(!!v)}
+                        disabled={!currentTradingAccountNo}
+                      />
+                    </div>
+                  </>
+                )}
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button disabled={!currentTradingAccountNo || tradingLoading}>
@@ -684,7 +800,7 @@ export const Backtest = () => {
         </UICard>
       )}
 
-      <UICard title="백테스트 설정 및 결과">
+      <UICard title="백테스트 설정">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-4 col-span-1">
             {mode === "pipeline" && (

@@ -5,9 +5,16 @@ import React from 'react';
  * Uses design tokens from styles/globals.css (--color-primary, --color-text, --color-text-muted, --color-border, etc.).
  */
 
-export const Card = ({ title, children, className = "" }: { title?: string; children: React.ReactNode; className?: string }) => (
+export const Card = ({ title, children, className = "", action }: { title?: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) => (
   <div className={`bg-card p-6 rounded-2xl shadow-card border border-border ${className}`}>
-    {title && <h3 className="text-base font-bold text-foreground mb-4">{title}</h3>}
+    {title && !action && <h3 className="text-base font-bold text-foreground mb-4">{title}</h3>}
+    {title && action && (
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <h3 className="text-base font-bold text-foreground">{title}</h3>
+        {action}
+      </div>
+    )}
+    {!title && action && <div className="mb-4">{action}</div>}
     {children}
   </div>
 );
@@ -75,7 +82,7 @@ function cellContent(cell: React.ReactNode): React.ReactNode {
     const isPositive = cell.startsWith("+");
     return (
       <span
-        className={`px-2 py-0.5 rounded-lg font-bold ${isPositive ? "text-[#f04452] bg-[#f04452]/5" : "text-[#3182f6] bg-[#3182f6]/5"}`}
+        className={`px-2 py-0.5 rounded-lg font-bold ${isPositive ? "text-[#00D47E] bg-[#00D47E]/10" : "text-[#f04452] bg-[#f04452]/10"}`}
       >
         {cell}
       </span>

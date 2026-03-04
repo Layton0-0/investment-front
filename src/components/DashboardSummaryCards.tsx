@@ -28,9 +28,9 @@ export function DashboardSummaryCards({ onNavigate }: DashboardSummaryCardsProps
             className="p-6 bg-card rounded-2xl shadow-card hover:shadow-lg transition-all text-left flex flex-col justify-between h-32 group border border-border hover:border-primary/20"
           >
             {Icon && (
-              <Icon className="w-6 h-6 text-accent opacity-50 group-hover:opacity-100 transition-opacity" />
+              <Icon className="w-6 h-6 text-primary opacity-50 group-hover:opacity-100 transition-opacity" />
             )}
-            <span className="text-base font-bold text-foreground">{item}</span>
+            <span className="text-[16px] font-bold text-foreground">{item}</span>
           </button>
         );
       })}

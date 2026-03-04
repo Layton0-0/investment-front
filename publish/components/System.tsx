@@ -55,9 +55,6 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn }: any) 
         </div>
       </Card>
 
-      {serverType === 0 && (
-        <Guardrail message="실계좌 자동 실행은 서버 설정(PIPELINE_ALLOW_REAL_EXECUTION)으로만 허용됩니다." type="info" />
-      )}
     </div>
   );
 };

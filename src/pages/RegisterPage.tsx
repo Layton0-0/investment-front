@@ -88,8 +88,8 @@ export function RegisterPage() {
         </div>
         <div className="space-y-5">
           <Input
-            label="사용자명"
-            placeholder="user_01"
+            label="이름"
+            placeholder="홍길동"
             value={username}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setUsername(e.target.value);

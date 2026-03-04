@@ -12,7 +12,8 @@ function useShowAccountTabs(): boolean {
     pathname === "/settings" ||
     pathname === "/auto-invest" ||
     pathname.startsWith("/strategies/") ||
-    pathname === "/orders"
+    pathname === "/orders" ||
+    pathname === "/portfolio"
   );
 }
 
@@ -29,8 +30,8 @@ export function AppLayout() {
       <div className="flex flex-1 min-h-0">
         <AppMenu isOps={isAdmin} mobileOpen={mobileMenuOpen} onMobileOpenChange={setMobileMenuOpen} />
 
-        <main className="flex-1 flex flex-col min-h-0 overflow-hidden min-w-0">
-          <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/50">
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/50 sticky top-16 z-40">
             {showAccountTabs ? <AccountTabs /> : <div className="flex-1" />}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
@@ -38,7 +39,7 @@ export function AppLayout() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="flex-1 overflow-auto p-6 min-h-0">
             <div className="max-w-[1200px] mx-auto w-full">
               <Outlet />
             </div>

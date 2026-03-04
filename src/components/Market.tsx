@@ -21,6 +21,8 @@ import type { OrderResponseDto } from "@/api/ordersApi";
 import { getSafeHref } from "@/utils/secureUrl";
 import { analyze, type AnalysisResponseDto } from "@/api/analysisApi";
 import { getCurrentPrice, searchSymbols, type CurrentPriceDto, type SymbolSearchItemDto } from "@/api/marketDataApi";
+import { getPositions, type AccountPositionDto } from "@/api/accountApi";
+import { getTaxSummary, type TaxReportSummaryDto } from "@/api/reportApi";
 import {
   Dialog,
   DialogContent,
@@ -157,7 +159,7 @@ export const News = () => {
           </p>
         )}
         <DataTable
-          headers={["시간", "시장", "종목", "구분", "제목", "원천"]}
+          headers={["시간", "시장", "종목", "구분", "제목", "감정"]}
           rows={rows.map((n) => [
             formatNewsDateTime(n.createdAt as string | number[] | undefined),
             String(n.market ?? "-"),
@@ -174,7 +176,7 @@ export const News = () => {
               }
               return String(n.title ?? "-");
             })(),
-            String(n.source ?? "-")
+            String((n as { sentiment?: string }).sentiment ?? "-")
           ])}
         />
       </Card>
@@ -358,6 +360,8 @@ export const Portfolio = () => {
   const [rebalanceSuggestions, setRebalanceSuggestions] = useState<RebalanceSuggestionsDto | null>(null);
   const [correlationData, setCorrelationData] = useState<CorrelationAnalysisResponseDto | null>(null);
   const [loadingExtra, setLoadingExtra] = useState(false);
+  const [positions, setPositions] = useState<Array<AccountPositionDto & { market: string }>>([]);
+  const [taxSummary, setTaxSummary] = useState<TaxReportSummaryDto | null>(null);
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -393,17 +397,25 @@ export const Portfolio = () => {
           return;
         }
         setLoadingExtra(true);
-        const [sector, risk, rebal, corr] = await Promise.all([
+        const [sector, risk, rebal, corr, posKr, posUs, tax] = await Promise.all([
           getSectorAnalysis({ accountNo: accNo }).catch(() => null),
           getPortfolioRiskMetrics(accNo).catch(() => null),
           getRebalanceSuggestions(accNo, "US").catch(() => null),
-          getCorrelationAnalysis({ accountNo: accNo }).catch(() => null)
+          getCorrelationAnalysis({ accountNo: accNo }).catch(() => null),
+          getPositions(accNo, "KR").catch(() => []),
+          getPositions(accNo, "US").catch(() => []),
+          getTaxSummary(new Date().getFullYear()).catch(() => null)
         ]);
         if (cancelled) return;
         setSectorData(sector ?? null);
         setRiskMetrics(risk ?? null);
         setRebalanceSuggestions(rebal ?? null);
         setCorrelationData(corr ?? null);
+        setPositions([
+          ...(posKr ?? []).map((p) => ({ ...p, market: "KR" as const })),
+          ...(posUs ?? []).map((p) => ({ ...p, market: "US" as const }))
+        ]);
+        setTaxSummary(tax ?? null);
       } finally {
         if (!cancelled) setLoadingExtra(false);
       }
@@ -456,7 +468,6 @@ export const Portfolio = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4 items-end">
-        <Input label="날짜 조회" type="date" value={selectedDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedDate(e.target.value)} />
         <Button variant="secondary" disabled={loading} onClick={loadByDate}>날짜별 조회</Button>
         <Button variant="secondary" disabled={loading} onClick={loadLatest}>최신 목록</Button>
         <Button variant="secondary" disabled={generating} onClick={handleGenerate}>수동 생성</Button>
@@ -474,24 +485,76 @@ export const Portfolio = () => {
         />
       )}
 
+      <Card title="보유 종목">
+        <DataTable
+          headers={["종목", "시장", "수량", "평균가", "현재가", "평가금액", "평가손익"]}
+          rows={positions.map((p) => [
+            p.symbol ?? "-",
+            <span key={p.symbol} className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-[#f2f4f6] text-[#4e5968]">{p.market}</span>,
+            String(p.quantity ?? "-"),
+            String(p.averagePrice ?? "-"),
+            String(p.currentPrice ?? "-"),
+            String(p.totalValue ?? "-"),
+            <span key={`pl-${p.symbol}`} className={Number(p.profitLoss) >= 0 ? "text-[#3182f6]" : "text-[#f04452]"}>{String(p.profitLoss ?? "-")}</span>
+          ])}
+          getRowKey={(_, i) => `pos-${positions[i]?.symbol ?? ""}-${positions[i]?.market ?? ""}-${i}`}
+        />
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="자산 배분 현황" className="md:col-span-1">
           <div className="h-48 bg-[#f2f4f6] border border-dashed border-[#e5e8eb] flex items-center justify-center text-[10px] text-[#8b95a1]">
             [ ASSET ALLOCATION CHART ]
           </div>
         </Card>
-        <Card title={portfolio ? `트레이딩 포트폴리오 (${getPortfolioDisplayDate(portfolio) || "해당 날짜"})` : "트레이딩 포트폴리오"} className="md:col-span-2">
+        <Card
+          title={portfolio ? `트레이딩 포트폴리오 (${getPortfolioDisplayDate(portfolio) || "해당 날짜"})` : "트레이딩 포트폴리오"}
+          className="md:col-span-2"
+          action={
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedDate(e.target.value)}
+                className="rounded-xl border border-[#f2f4f6] bg-[#f9fafb] px-3 py-2 text-sm text-[#191f28]"
+              />
+            </div>
+          }
+        >
           <DataTable
-            headers={["종목", "시장", "진입가", "목표가", "손절가", "사유"]}
+            headers={["종목", "시장", "진입가", "손절가", "목표가", "사유"]}
             rows={(portfolio?.items ?? []).map((it: TradingPortfolioItemDto) => [
               String(it.symbol ?? "-"),
               String(it.market ?? "-"),
               String(it.entryPrice ?? "-"),
-              String(it.targetPrice ?? "-"),
-              String(it.stopLossPrice ?? "-"),
+              <span key="sl" className="text-[#f04452] font-medium">{String(it.stopLossPrice ?? "-")}</span>,
+              <span key="tg" className="text-[#00D47E] font-medium">{String(it.targetPrice ?? "-")}</span>,
               String(it.reason ?? "-")
             ])}
           />
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card title="수수료 영향">
+          <div className="space-y-2 text-[14px] text-[#4e5968]">
+            <p><span className="font-semibold text-[#191f28]">매매 수수료</span> · 증권사별 적용</p>
+            <p><span className="font-semibold text-[#191f28]">증권거래세</span> · 매도 시 과세 대상</p>
+            <p className="text-[12px] text-[#8b95a1] mt-2">* 실제 수수료는 증권사/거래 조건에 따라 달라집니다.</p>
+          </div>
+        </Card>
+        <Card title="세금 영향">
+          <div className="space-y-2 text-[14px] text-[#4e5968]">
+            {taxSummary && (
+              <>
+                {taxSummary.domesticRealizedGainLoss != null && <p><span className="font-semibold text-[#191f28]">국내 실현손익 (YTD)</span> {Number(taxSummary.domesticRealizedGainLoss).toLocaleString()}원</p>}
+                {taxSummary.overseasRealizedGainLoss != null && <p><span className="font-semibold text-[#191f28]">해외 실현손익 (YTD)</span> {Number(taxSummary.overseasRealizedGainLoss).toLocaleString()}원</p>}
+                {taxSummary.estimatedTax != null && <p><span className="font-semibold text-[#191f28]">예상 양도세</span> {Number(taxSummary.estimatedTax).toLocaleString()}원</p>}
+                {taxSummary.disclaimer && <p className="text-[12px] text-[#8b95a1] mt-2">* {taxSummary.disclaimer}</p>}
+              </>
+            )}
+            {!taxSummary && <p className="text-[#8b95a1]">연말 세금 요약 데이터가 없습니다.</p>}
+          </div>
         </Card>
       </div>
 
@@ -587,6 +650,7 @@ function StockSearchModal({
   onSelect: (symbol: string, name: string, market: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [marketFilter, setMarketFilter] = useState<string>("");
   const [results, setResults] = useState<SymbolSearchItemDto[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -600,13 +664,16 @@ function StockSearchModal({
     if (!open) return;
     const t = setTimeout(() => {
       setLoading(true);
-      searchSymbols({ q: query.trim() || undefined, market: "" })
+      searchSymbols({
+        q: query.trim() || undefined,
+        market: marketFilter === "KR" || marketFilter === "US" ? marketFilter : undefined,
+      })
         .then((list) => setResults(list ?? []))
         .catch(() => setResults([]))
         .finally(() => setLoading(false));
     }, query.trim() ? 300 : 0);
     return () => clearTimeout(t);
-  }, [open, query]);
+  }, [open, query, marketFilter]);
 
   const handleSelect = (item: SymbolSearchItemDto) => {
     const symbol = item.symbol ?? "";
@@ -622,14 +689,26 @@ function StockSearchModal({
         <DialogHeader>
           <DialogTitle>종목 검색</DialogTitle>
         </DialogHeader>
-        <input
-          type="text"
-          className="w-full border border-gray-300 p-2 text-sm rounded mb-2"
-          placeholder="종목명 또는 종목코드 검색..."
-          value={query}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
-          autoFocus
-        />
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            className="flex-1 border border-gray-300 p-2 text-sm rounded"
+            placeholder="종목명 또는 종목코드 검색 (국내·미국)"
+            value={query}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <select
+            className="border border-gray-300 p-2 text-sm rounded bg-white min-w-[80px]"
+            value={marketFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMarketFilter(e.target.value)}
+            aria-label="시장 필터"
+          >
+            <option value="">전체</option>
+            <option value="KR">국내(KR)</option>
+            <option value="US">미국(US)</option>
+          </select>
+        </div>
         <div className="flex-1 overflow-y-auto min-h-[200px] border border-gray-200 rounded">
           {loading ? (
             <p className="p-4 text-sm text-muted-foreground">검색 중…</p>
@@ -677,6 +756,37 @@ export const Orders = () => {
   const [placing, setPlacing] = useState(false);
   const [cancellingAll, setCancellingAll] = useState(false);
   const [stockSearchOpen, setStockSearchOpen] = useState(false);
+  const [priceLoading, setPriceLoading] = useState(false);
+
+  /** 종목·시장 선택 시 KR이면 현재가 자동 조회하여 가격 필드에 반영 */
+  const fetchCurrentPriceForOrder = useCallback(async (symbol: string, market: string) => {
+    if (!symbol.trim() || market !== "KR") return;
+    setPriceLoading(true);
+    try {
+      const dto = await getCurrentPrice(symbol.trim());
+      if (dto?.currentPrice != null && Number(dto.currentPrice) > 0) {
+        setOrderPrice(String(Math.round(Number(dto.currentPrice))));
+      }
+    } catch {
+      // 조회 실패 시 가격은 비워 둠 (사용자 입력)
+    } finally {
+      setPriceLoading(false);
+    }
+  }, []);
+
+  /** 종목 선택 후 수량 입력 시 가격이 비어 있으면 KR 현재가 자동 조회 */
+  useEffect(() => {
+    const q = orderQuantity.trim();
+    if (
+      orderSymbol.trim() &&
+      orderMarket === "KR" &&
+      orderPrice === "" &&
+      q !== "" &&
+      Number(q) > 0
+    ) {
+      fetchCurrentPriceForOrder(orderSymbol.trim(), orderMarket);
+    }
+  }, [orderSymbol, orderQuantity, orderMarket, orderPrice, fetchCurrentPriceForOrder]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -702,7 +812,7 @@ export const Orders = () => {
     setOrderError(null);
     setOrderSuccess(null);
     if (!accountNo || !orderSymbol.trim() || !orderQuantity || !orderPrice) {
-      setOrderError("계좌·종목·수량·가격을 입력하세요.");
+      setOrderError("계좌·종목·수량을 입력하세요. (국내 종목은 가격 자동 조회, 미국 종목은 가격 수동 입력)");
       return;
     }
     const qty = Number(orderQuantity);
@@ -780,7 +890,14 @@ export const Orders = () => {
               </select>
             </div>
             <Input label="수량" type="number" value={orderQuantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderQuantity(e.target.value)} placeholder="1" />
-            <Input label="가격" type="number" value={orderPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderPrice(e.target.value)} placeholder="70000" />
+            <Input
+              label="가격"
+              type="number"
+              value={orderPrice}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderPrice(e.target.value)}
+              placeholder={orderMarket === "US" ? "미국 종목: 가격 수동 입력" : priceLoading ? "조회 중…" : "종목·수량 입력 시 자동"}
+              disabled={priceLoading}
+            />
             <div>
               <label className="block text-[11px] font-bold text-[#8b95a1] uppercase mb-1">시장</label>
               <select className="w-full border border-gray-300 p-2 text-sm rounded" value={orderMarket} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrderMarket(e.target.value)}>
@@ -797,6 +914,8 @@ export const Orders = () => {
               setOrderSymbol(symbol);
               setOrderSymbolName(name);
               setOrderMarket(market);
+              setOrderPrice("");
+              fetchCurrentPriceForOrder(symbol, market);
             }}
           />
         </Card>
@@ -804,7 +923,9 @@ export const Orders = () => {
 
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
-          <Button variant="secondary" className="text-xs" disabled>전체</Button>
+          <Button variant="secondary" className="text-xs">전체</Button>
+          <Button variant="ghost" className="text-xs">체결</Button>
+          <Button variant="ghost" className="text-xs">미체결</Button>
         </div>
         <Button
           variant="secondary"
@@ -820,7 +941,7 @@ export const Orders = () => {
 
       <Card title="주문 및 체결 내역">
         <DataTable
-          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "시그널 유형", "청산 규칙", "관리"]}
+          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "사유", "관리"]}
           rows={items.map((o) => [
             String(o.orderTime ?? "-"),
             String(o.symbol ?? "-"),
@@ -828,8 +949,7 @@ export const Orders = () => {
             String(o.price ?? "-"),
             String(o.quantity ?? "-"),
             String(o.status ?? "-"),
-            String(o.signalType ?? "-"),
-            String(o.exitRuleType ?? "-"),
+            String(o.explanation ?? "-"),
             o.status === "PENDING" && accountNo ? (
               <Button
                 variant="ghost"

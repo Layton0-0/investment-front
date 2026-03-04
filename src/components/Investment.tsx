@@ -4,7 +4,8 @@ import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
 import { getPipelineSummary } from "@/api/pipelineApi";
-import { getSignals, type SignalScoreDto } from "@/api/signalsApi";
+import { getRiskSummary, type RiskSummaryDto } from "@/api/riskApi";
+import type { SignalScoreDto } from "@/api/signalsApi";
 import {
   activateStrategy,
   getStrategies,
@@ -32,6 +33,51 @@ import { Input } from "@/components/ui/input";
 type SummaryState = Partial<PipelineSummaryDto> & { accountNo?: string };
 type SignalWithMarket = SignalScoreDto & { market: string };
 
+/** 전략 타입 표시 라벨 (국내·미국 동일 한글) */
+function strategyTypeToLabel(strategyType: string): string {
+  const map: Record<string, string> = {
+    SHORT_TERM: "단기 모멘텀",
+    MEDIUM_TERM: "줄기 가치",
+    LONG_TERM: "장기 배당",
+  };
+  return map[strategyType] ?? strategyType;
+}
+
+/** score 기반 시그널 타입 (BUY/HOLD/SELL) */
+function signalTypeFromScore(score: number | undefined): "BUY" | "HOLD" | "SELL" {
+  if (score == null || Number.isNaN(score)) return "HOLD";
+  if (score > 0.6) return "BUY";
+  if (score >= 0.3) return "HOLD";
+  return "SELL";
+}
+
+/** score 기반 강도 (강/중/약) */
+function strengthFromScore(score: number | undefined): string {
+  if (score == null || Number.isNaN(score)) return "-";
+  if (score > 0.6) return "강";
+  if (score >= 0.3) return "중";
+  return "약";
+}
+
+/** 포지션 금액 포맷 (KR: ₩, US: $) */
+function formatPositionPrice(
+  value: string | number | undefined | null,
+  market: string | undefined
+): string {
+  if (value == null || value === "") return "-";
+  const num = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(num)) return "-";
+  if (market === "US") return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₩${num.toLocaleString("ko-KR")}`;
+}
+
+/** 손익률 % 표시 (양수 +, 음수 -) */
+function formatPnlPercent(pnlPercent: number | undefined | null): string {
+  if (pnlPercent == null || Number.isNaN(pnlPercent)) return "-";
+  const sign = pnlPercent >= 0 ? "+" : "";
+  return `${sign}${pnlPercent.toFixed(2)}%`;
+}
+
 /** 시그널 발생 시각을 yyyy.MM.dd HH:mm:ss.SSS 형식으로 포맷. createdAt 없으면 basDt만 반환 */
 function formatSignalTime(basDt: string | undefined, createdAt: string | undefined): string {
   if (createdAt) {
@@ -58,6 +104,7 @@ export const AutoInvest = () => {
   const [summary, setSummary] = useState<SummaryState | null>(null);
   const [signals, setSignalsState] = useState<SignalWithMarket[]>([]);
   const [noAccount, setNoAccount] = useState(false);
+  const [riskSummary, setRiskSummary] = useState<RiskSummaryDto | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -76,28 +123,28 @@ export const AutoInvest = () => {
         }
         const accountNo = main.accountNo;
 
-        const [s, krSignals, usSignals] = await Promise.all([
+        const [s, risk] = await Promise.all([
           getPipelineSummary(accountNo).catch(() => null),
-          getSignals({ market: "KR", page: 0, size: 10 }).catch(() => null),
-          getSignals({ market: "US", page: 0, size: 10 }).catch(() => null)
+          getRiskSummary().catch(() => null)
         ]);
 
         if (!mounted) return;
+        if (risk) setRiskSummary(risk);
         setSummary(
           s || {
             accountNo,
             universeCountKr: undefined,
             universeCountUs: undefined,
-            signalCountKr: krSignals?.totalElements,
-            signalCountUs: usSignals?.totalElements,
+            signalCountKr: undefined,
+            signalCountUs: undefined,
             allocationSummary: undefined,
             openPositionCount: undefined
           }
         );
 
         const combined: SignalWithMarket[] = [
-          ...(krSignals?.content ?? []).map((x) => ({ ...x, market: "KR" })),
-          ...(usSignals?.content ?? []).map((x) => ({ ...x, market: "US" }))
+          ...(s?.signalListKr ?? []).map((x) => ({ ...x, market: "KR" })),
+          ...(s?.signalListUs ?? []).map((x) => ({ ...x, market: "US" }))
         ];
         setSignalsState(combined.slice(0, 20));
       } catch (e: unknown) {
@@ -128,6 +175,12 @@ export const AutoInvest = () => {
 
   return (
     <div className="space-y-6">
+      <div className="mb-2">
+        <h1 className="text-xl font-bold text-foreground">자동투자 현황</h1>
+        <p className="text-sm text-[#8b95a1] mt-1">
+          4단계 파이프라인 (유니버스 → 시그널 → 자금관리 → 매매실행) 상태
+        </p>
+      </div>
       {loading && <Guardrail message="자동투자 현황 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
       {!allocationReady && summary && !loading && (
@@ -144,69 +197,82 @@ export const AutoInvest = () => {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card title="01. 유니버스">
+        <Card title="1단계: 유니버스">
           <div className="text-center py-4">
-            <div className="text-2xl font-mono font-bold">
-              {summary?.universeCountKr ?? "-"} / {summary?.universeCountUs ?? "-"}
+            <div className="text-lg font-mono font-bold">
+              KR: {summary?.universeCountKr ?? "-"}
             </div>
-            <div className="text-[10px] text-[#8b95a1] uppercase mt-1">KR / US ITEMS</div>
+            <div className="text-lg font-mono font-bold mt-1">
+              US: {summary?.universeCountUs ?? "-"}
+            </div>
           </div>
         </Card>
-        <Card title="02. 시그널">
+        <Card title="2단계: 시그널">
           <div className="text-center py-4">
-            <div className="text-2xl font-mono font-bold">
-              {summary?.signalCountKr ?? "-"} / {summary?.signalCountUs ?? "-"}
+            <div className="text-lg font-mono font-bold text-[#00D47E]">
+              KR: {summary?.signalCountKr ?? "-"}
             </div>
-            <div className="text-[10px] text-[#8b95a1] uppercase mt-1">BUY SIGNALS</div>
+            <div className="text-lg font-mono font-bold text-[#00D47E] mt-1">
+              US: {summary?.signalCountUs ?? "-"}
+            </div>
           </div>
         </Card>
-        <Card title="03. 자금관리">
+        <Card title="3단계: 자금 배분">
           <div className="text-center py-4">
-            <div className="text-[14px] font-mono font-bold">
-              {summary?.allocationSummary || "준비 중"}
+            <div className="text-[14px] font-mono font-bold">최대 비중 적용</div>
+            <div className="text-[14px] text-[#8b95a1] mt-1">
+              {summary?.allocationRatioSummary ?? summary?.allocationSummary ?? "준비 중"}
             </div>
-            <div className="text-[10px] text-[#8b95a1] uppercase mt-1">ALLOCATION / CASH</div>
           </div>
         </Card>
-        <Card title="04. 매매실행">
+        <Card title="4단계: 보유 포지션">
           <div className="text-center py-4">
             <div className="text-2xl font-mono font-bold">{summary?.openPositionCount ?? "-"}</div>
-            <div className="text-[10px] text-[#8b95a1] uppercase mt-1">OPEN POSITIONS</div>
+            <div className="text-sm text-[#8b95a1] mt-1">종목 보유중</div>
           </div>
         </Card>
       </div>
 
-      <Card title="실시간 시그널 발생 내역">
-        <DataTable 
-          headers={['시간', '시장', '종목', '전략', '시그널', '강도']}
-          rows={signals.map((s) => [
-            formatSignalTime(s.basDt, s.createdAt),
-            String(s.market || "-"),
-            String(s.symbol || "-"),
-            String(s.factorType || "-"),
-            "BUY",
-            String(s.score ?? "-")
-          ])}
+      <Card title="시그널 목록">
+        <DataTable
+          headers={["종목", "시장", "시그널", "강도", "목표가"]}
+          rows={signals.map((s) => {
+            const sigType = signalTypeFromScore(typeof s.score === "number" ? s.score : undefined);
+            return [
+              String(s.symbol ?? "-"),
+              String(s.market || "-"),
+              <Badge
+                key="sig"
+                status={sigType === "BUY" ? "active" : sigType === "SELL" ? "failed" : "neutral"}
+              >
+                {sigType}
+              </Badge>,
+              strengthFromScore(typeof s.score === "number" ? s.score : undefined),
+              "-"
+            ];
+          })}
+          getRowKey={(_, i) => `sig-${signals[i]?.symbol ?? ""}-${i}`}
         />
       </Card>
 
-      <Card title="현재 파이프라인 포지션">
+      <Card title="보유 포지션">
         <DataTable
-          headers={["종목", "시장", "진입일", "수량", "진입가", "시그널 유형", "청산 규칙"]}
+          headers={["종목", "시장", "수량", "평균가", "현재가", "손익"]}
           rows={(summary?.openPositionList ?? []).map((p) => [
             String(p.symbol ?? "-"),
             String(p.market ?? "-"),
-            String(p.entryDt ?? "-"),
             String(p.quantity ?? "-"),
-            typeof p.entryPrice === "number" ? String(p.entryPrice) : String(p.entryPrice ?? "-"),
-            String(p.signalType ?? "-"),
-            String(p.exitRuleType ?? "-")
+            formatPositionPrice(p.entryPrice, p.market),
+            p.currentPrice != null ? formatPositionPrice(p.currentPrice, p.market) : "-",
+            formatPnlPercent(p.pnlPercent ?? undefined)
           ])}
           getRowKey={(_, i) => `pos-${(summary?.openPositionList ?? [])[i]?.positionId ?? i}`}
         />
       </Card>
 
-      <Guardrail message="신규 매수 축소/중단: 리스크 게이트 발동 (일일 손실 한도 근접)" type="error" />
+      {riskSummary && !riskSummary.riskGateAllowsNewBuy && (
+        <Guardrail message="신규 매수 제한: 리스크 게이트가 적용되어 있습니다." type="error" />
+      )}
     </div>
   );
 };
@@ -462,6 +528,7 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
   const [items, setItems] = useState<StrategyDto[]>([]);
   const [comparison, setComparison] = useState<StrategyComparisonItemDto[]>([]);
   const [mainAccountNo, setMainAccountNo] = useState<string | null>(null);
+  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedStrategyType, setSelectedStrategyType] = useState<string | null>(null);
@@ -492,13 +559,15 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
         if (!main || !mounted) return;
         setMainAccountNo(main.accountNo);
-        const [list, comp] = await Promise.all([
+        const [list, comp, summary] = await Promise.all([
           getStrategies(main.accountNo, apiMarket),
           getStrategyComparison(apiMarket).catch(() => []),
+          getPipelineSummary(main.accountNo).catch(() => null),
         ]);
         if (!mounted) return;
         setItems(list ?? []);
         setComparison(Array.isArray(comp) ? comp : []);
+        setPipelineSummary(summary ?? null);
       } catch (e: unknown) {
         if (!mounted) return;
         setError(e instanceof Error ? e.message : "전략 목록 조회에 실패했습니다.");
@@ -612,7 +681,7 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
         <h2 className="text-lg font-bold uppercase">
           {market === "kr" ? "국내" : "미국"} 전략 목록
         </h2>
-        <Badge status="active">SYSTEM ACTIVE</Badge>
+        <Badge status="active">시스템 정상 작동 중</Badge>
       </div>
       {loading && <Guardrail message="전략 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
@@ -641,58 +710,71 @@ const StrategyInner = ({ market }: { market: "kr" | "us" }) => {
           </div>
         </Card>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {items.map((s) => (
-          <Card key={`${s.accountNo}-${s.strategyType}`} title={`전략 ${s.strategyType}`}>
-            <div className="space-y-3">
-              <p className="text-xs text-[#8b95a1]">
-                {s.maxInvestmentAmount != null ? `최대 투자금: ${Number(s.maxInvestmentAmount).toLocaleString()}` : "-"}
-              </p>
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-[#8b95a1] uppercase tracking-widest">Market</span>
-                <span>{s.market || apiMarket}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-[#8b95a1] uppercase tracking-widest">Status</span>
-                <Badge status={isStrategyEnabled(s) ? "active" : "stopped"}>
-                  {s.status}
-                </Badge>
-              </div>
-              <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-2">
+      <Card title="전략 목록">
+        <DataTable
+          headers={["전략명", "상태", "비중", "최소 금액", "최대 금액", "수익률", "액션"]}
+          rows={items.map((s) => {
+            const returnPct =
+              s.successRate != null
+                ? `${(Number(s.successRate) * 100).toFixed(1)}%`
+                : s.totalProfitLoss != null
+                  ? `${Number(s.totalProfitLoss) >= 0 ? "+" : ""}${Number(s.totalProfitLoss).toFixed(1)}%`
+                  : null;
+            return [
+              strategyTypeToLabel(s.strategyType),
+              <Badge key="status" status={isStrategyEnabled(s) ? "active" : "stopped"}>{s.status}</Badge>,
+              "-",
+              s.minInvestmentAmount != null ? `₩${Number(s.minInvestmentAmount).toLocaleString()}` : "-",
+              s.maxInvestmentAmount != null ? `₩${Number(s.maxInvestmentAmount).toLocaleString()}` : "-",
+              returnPct != null ? (
+                <span key="ret" className={returnPct.startsWith("-") ? "text-[#f04452] font-semibold" : "text-[#00D47E] font-semibold"}>
+                  {returnPct.startsWith("+") || returnPct.startsWith("-") ? returnPct : `+${returnPct}`}
+                </span>
+              ) : (
+                "-"
+              ),
+              <span key="action" className="flex items-center gap-2">
                 <Button
-                  variant="ghost"
-                  className="text-[12px] px-3 py-2"
-                  onClick={() => openDetail(s.strategyType)}
+                  variant={isStrategyEnabled(s) ? "secondary" : "primary"}
+                  className="text-[12px] py-1.5 px-4"
+                  onClick={() => (isStrategyEnabled(s) ? handleStop(s.strategyType) : handleActivate(s.strategyType))}
                 >
+                  {isStrategyEnabled(s) ? "중지" : "활성화"}
+                </Button>
+                <Button variant="ghost" className="text-[12px] py-1.5 px-2" onClick={() => openDetail(s.strategyType)}>
                   상세
                 </Button>
-                <Button
-                  variant="secondary"
-                  className="text-[12px] px-3 py-2"
-                  onClick={() => handleActivate(s.strategyType)}
-                  disabled={isStrategyEnabled(s)}
-                >
-                  Activate
-                </Button>
-                <Button
-                  variant="danger"
-                  className="text-[12px] px-3 py-2"
-                  onClick={() => handleStop(s.strategyType)}
-                  disabled={!isStrategyEnabled(s)}
-                >
-                  Stop
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="text-[12px] px-3 py-2"
-                  onClick={() => openEdit(s)}
-                >
-                  편집
-                </Button>
-              </div>
+              </span>,
+            ];
+          })}
+          getRowKey={(_, i) => `${items[i]?.accountNo ?? ""}-${items[i]?.strategyType ?? ""}-${i}`}
+        />
+      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card title="유니버스 요약">
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-[#191f28]">
+              {pipelineSummary != null
+                ? market === "kr"
+                  ? pipelineSummary.universeCountKr ?? "-"
+                  : pipelineSummary.universeCountUs ?? "-"
+                : "-"}
             </div>
-          </Card>
-        ))}
+            <div className="text-sm text-[#8b95a1] mt-1">종목이 유니버스에 포함됨</div>
+          </div>
+        </Card>
+        <Card title="시그널 요약">
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-[#00D47E]">
+              {pipelineSummary != null
+                ? market === "kr"
+                  ? pipelineSummary.signalCountKr ?? "-"
+                  : pipelineSummary.signalCountUs ?? "-"
+                : "-"}
+            </div>
+            <div className="text-sm text-[#8b95a1] mt-1">활성 시그널</div>
+          </div>
+        </Card>
       </div>
 
       <StrategyDetailModal

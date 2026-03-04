@@ -59,6 +59,17 @@ export interface RiskHistoryItemDto {
   occurredAt?: string;
 }
 
+/** 성과 귀인 (GET /api/v1/risk/attribution) - 팩터/전략별 수익 기여도 */
+export interface PerformanceAttributionDto {
+  totalRealizedPnl?: number;
+  byFactor?: { factor: string; pnl: number; contributionPct: number }[];
+  byStrategy?: { strategy: string; pnl: number; contributionPct: number }[];
+}
+
+export function getAttribution(): Promise<PerformanceAttributionDto> {
+  return apiFetch<PerformanceAttributionDto>("/api/v1/risk/attribution", { method: "GET" });
+}
+
 export function getRiskSummary(): Promise<RiskSummaryDto> {
   return apiFetch<RiskSummaryDto>("/api/v1/risk/summary", { method: "GET" });
 }

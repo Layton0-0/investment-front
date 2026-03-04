@@ -3,7 +3,7 @@ import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { Switch } from "@/components/ui/switch";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
-import { getDataPipelineStatus, getAlerts, getAuditLogs, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getTradeJournal, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type AuditLogItemDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -29,6 +29,8 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
         return <ModelView />;
       case 'audit':
         return <AuditView />;
+      case 'trade-journal':
+        return <TradeJournalView />;
       case 'governance':
         return <GovernanceView />;
       case 'settings':
@@ -45,14 +47,15 @@ export const OpsDashboard = ({ subPage }: { subPage: string }) => {
     health: "시스템 헬스",
     model: "모델/예측",
     audit: "감사 로그",
+    "trade-journal": "트레이드 저널",
     governance: "전략 거버넌스",
     settings: "시스템 설정",
   };
   const dataPipelineLabel = subPageLabels[subPage] ?? `Ops: ${subPage.toUpperCase()}`;
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-        <h2 className="text-lg font-bold uppercase tracking-tight">{dataPipelineLabel}</h2>
+      <div className="flex justify-between items-center border-b border-[#f2f4f6] pb-3">
+        <h2 className="text-lg font-bold text-[#191f28]">{dataPipelineLabel}</h2>
         <div className="flex gap-2">
           <Badge status="active">MASTER NODE: ALIVE</Badge>
           <Badge status="pending">SLAVE NODE: SYNCING</Badge>
@@ -488,6 +491,104 @@ const AuditView = () => {
         {!loading && data && (data.totalPages ?? 0) > 1 && (
           <div className="mt-2 text-sm text-gray-500">
             페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+/** 트레이드 저널: GET /api/v1/ops/trade-journal 연동 (P6-3) */
+function formatDateTimeForTradeJournal(iso: string | undefined): string {
+  if (!iso) return "-";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "medium" });
+  } catch {
+    return iso;
+  }
+}
+
+const TradeJournalView = () => {
+  const [data, setData] = useState<AuditLogListResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getTradeJournal({ page, size: 20 })
+      .then((res) => {
+        if (mounted) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e.message : "트레이드 저널 조회에 실패했습니다.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [page]);
+
+  const rows: string[][] =
+    data?.items?.map((a: AuditLogItemDto) => {
+      let action = "-";
+      let symbol = "-";
+      if (a.detailJson) {
+        try {
+          const detail = JSON.parse(a.detailJson) as { action?: string; symbol?: string };
+          action = detail.action ?? "-";
+          symbol = detail.symbol ?? "-";
+        } catch {
+          // ignore
+        }
+      }
+      return [
+        formatDateTimeForTradeJournal(a.occurredAt),
+        action,
+        symbol,
+        (a.summary ?? "-").slice(0, 80) + ((a.summary?.length ?? 0) > 80 ? "…" : ""),
+        a.result ?? "-",
+      ];
+    }) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card title="매매 결정 저널">
+        <p className="text-sm text-gray-600 mb-2">파이프라인 매수/매도/스킵 결정 내역 (BUY, SKIP, DRY_RUN 등)</p>
+        {loading && <Guardrail type="info" message="트레이드 저널 로딩 중…" />}
+        {error && <Guardrail type="error" message={error} />}
+        {!loading && !error && (
+          <DataTable
+            headers={["일시", "구분", "종목", "요약", "결과"]}
+            rows={rows.length ? rows : [["이력 없음", "-", "-", "-", "-"]]}
+          />
+        )}
+        {!loading && data && (data.totalPages ?? 0) > 1 && (
+          <div className="mt-2 flex gap-2 items-center">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              이전
+            </button>
+            <span className="text-sm text-gray-500">
+              페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+            </span>
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={(data.page ?? 0) >= (data.totalPages ?? 1) - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              다음
+            </button>
           </div>
         )}
       </Card>
@@ -948,7 +1049,7 @@ export const Batch = ({ role }: { role: string }) => {
       {error && <Guardrail type="error" message={error} />}
       <Card title="스케줄 현황 (Batch Jobs)">
         <DataTable
-          headers={["Job 이름", "스케줄", "마지막 빌드", "빌드 결과", "실행"]}
+          headers={["작업명", "스케줄", "최근 실행", "상태", "액션"]}
           rows={rows}
         />
       </Card>

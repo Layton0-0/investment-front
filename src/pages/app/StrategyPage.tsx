@@ -16,7 +16,7 @@ export default function StrategyPage() {
           {normalizedMarket === "kr" ? "국내 전략" : "미국 전략"}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {normalizedMarket === "kr" ? "국내(KOSPI/KOSDAQ)" : "미국(NYSE/NASDAQ)"} 단기/중기/장기 전략 조회·상태 변경
+          {normalizedMarket === "kr" ? "국내 시장 투자 전략 관리" : "미국 시장 투자 전략 관리"}
         </p>
       </div>
       <Strategy market={normalizedMarket} />

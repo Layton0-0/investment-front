@@ -36,12 +36,17 @@
   --radius: 0.75rem;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  /* Chart */
+  /* Chart (smart-portfolio-pal: 국내/미국 시장별) */
   --chart-1: 222 47% 25%;
   --chart-2: 199 89% 48%;
   --chart-3: 160 84% 39%;
   --chart-4: 142 71% 45%;
   --chart-5: 220 14% 76%;
+  --chart-stocks-kr: 222 47% 25%;
+  --chart-stocks-us: 199 89% 48%;
+  --chart-bonds-kr: 160 84% 39%;
+  --chart-bonds-us: 142 71% 45%;
+  --chart-cash: 220 14% 76%;
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, hsl(222 47% 18%) 0%, hsl(222 47% 28%) 100%);
   --gradient-accent: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(142 71% 45%) 100%);
@@ -65,6 +70,21 @@
   /* Legacy / input */
   --input-background: hsl(220 14% 96%);
   --switch-background: #cbced4;
+  /* Publish (smart-portfolio-pal) tokens – use for UI aligned to publish */
+  --publish-primary: #3182f6;
+  --publish-primary-hover: #1b6dd9;
+  --publish-bg: #f9fafb;
+  --publish-bg-card: #ffffff;
+  --publish-border: #f2f4f6;
+  --publish-text: #191f28;
+  --publish-text-muted: #8b95a1;
+  --publish-text-secondary: #4e5968;
+  --publish-accent-bg: #e8f3ff;
+  --publish-destructive: #f04452;
+  --publish-success: #00D47E;
+  --radius-publish: 1rem;
+  --shadow-publish: 0 8px 24px rgba(149, 157, 165, 0.05);
+  --shadow-publish-hover: 0 8px 24px rgba(149, 157, 165, 0.12);
 }
 
 .dark {
@@ -128,6 +148,11 @@
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
+  --color-chart-stocks-kr: hsl(var(--chart-stocks-kr));
+  --color-chart-stocks-us: hsl(var(--chart-stocks-us));
+  --color-chart-bonds-kr: hsl(var(--chart-bonds-kr));
+  --color-chart-bonds-us: hsl(var(--chart-bonds-us));
+  --color-chart-cash: hsl(var(--chart-cash));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -201,6 +226,17 @@
 }
 
 @layer utilities {
+  .publish-card {
+    background: var(--publish-bg-card);
+    border: 1px solid var(--publish-border);
+    border-radius: var(--radius-publish);
+    box-shadow: var(--shadow-publish);
+  }
+  .publish-btn-primary {
+    background: var(--publish-primary);
+    color: white;
+    border-radius: var(--radius-publish);
+  }
   .gradient-primary {
     background: var(--gradient-primary);
   }
@@ -230,6 +266,9 @@
   }
   .animate-scale-in {
     animation: scaleIn 0.3s ease-out forwards;
+  }
+  .animate-pulse-slow {
+    animation: pulse 3s ease-in-out infinite;
   }
   @keyframes fadeUp {
     from {

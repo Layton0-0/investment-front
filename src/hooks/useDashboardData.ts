@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { getMainAccount } from "@/api/userAccountsApi";
-import { getAccountAssets, getPositions } from "@/api/accountApi";
+import { getAccountAssets, getOverseasSummary, getPositions, getProfitLoss } from "@/api/accountApi";
 import { getOrders } from "@/api/ordersApi";
 import { getPipelineSummary } from "@/api/pipelineApi";
 import { getSettingByAccountNo } from "@/api/settingsApi";
 import { getPerformanceSummary } from "@/api/dashboardApi";
 import { getMarketRegime } from "@/api/macroApi";
 import { getDisplayErrorMessage } from "@/api/errorMessages";
+import { ApiError } from "@/api/http";
 import type { ServerType } from "@/types";
 import type { MainAccountResponseDto } from "@/api/userAccountsApi";
-import type { AccountAssetDto, AccountPositionDto } from "@/api/accountApi";
+import type { AccountAssetDto, AccountPositionDto, OverseasBalanceSummaryDto, ProfitLossDto } from "@/api/accountApi";
 import type { OrderResponseDto } from "@/api/ordersApi";
 import type { PipelineSummaryDto } from "@/api/pipelineApi";
 import type { TradingSettingDto } from "@/api/settingsApi";
@@ -28,6 +29,8 @@ export interface UseDashboardDataResult {
   virtualPositionsUs: AccountPositionDto[];
   realPositionsKr: AccountPositionDto[];
   realPositionsUs: AccountPositionDto[];
+  virtualOverseasSummary: OverseasBalanceSummaryDto | null;
+  realOverseasSummary: OverseasBalanceSummaryDto | null;
   virtualRecentOrders: OrderResponseDto[];
   realRecentOrders: OrderResponseDto[];
   virtualPipelineSummary: PipelineSummaryDto | null;
@@ -41,6 +44,11 @@ export interface UseDashboardDataResult {
   tradingSetting: TradingSettingDto | null;
   /** 대시보드 성과 요약 (총 평가액·MDD·Sharpe 등) */
   performanceSummary: DashboardPerformanceSummaryDto | null;
+  /** 기간별 손익 (한투 API, 최근 30일). 실패 시 null */
+  virtualPeriodProfitLoss: ProfitLossDto | null;
+  realPeriodProfitLoss: ProfitLossDto | null;
+  /** 모의계좌에서 기간별손익 API 미지원 시 true (프론트 "모의계좌 미지원" 표기용) */
+  virtualPeriodProfitLossUnsupported: boolean;
   /** 시장 레짐 (한줄 요약용). 실패 시 null */
   marketRegime: RegimeResponseDto | null;
   loading: boolean;
@@ -62,6 +70,8 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
   const [virtualPositionsUs, setVirtualPositionsUs] = useState<AccountPositionDto[]>([]);
   const [realPositionsKr, setRealPositionsKr] = useState<AccountPositionDto[]>([]);
   const [realPositionsUs, setRealPositionsUs] = useState<AccountPositionDto[]>([]);
+  const [virtualOverseasSummary, setVirtualOverseasSummary] = useState<OverseasBalanceSummaryDto | null>(null);
+  const [realOverseasSummary, setRealOverseasSummary] = useState<OverseasBalanceSummaryDto | null>(null);
   const [virtualRecentOrders, setVirtualRecentOrders] = useState<OrderResponseDto[]>([]);
   const [realRecentOrders, setRealRecentOrders] = useState<OrderResponseDto[]>([]);
   const [virtualPipelineSummary, setVirtualPipelineSummary] = useState<PipelineSummaryDto | null>(null);
@@ -69,6 +79,9 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
   const [virtualTradingSetting, setVirtualTradingSetting] = useState<TradingSettingDto | null>(null);
   const [realTradingSetting, setRealTradingSetting] = useState<TradingSettingDto | null>(null);
   const [performanceSummary, setPerformanceSummary] = useState<DashboardPerformanceSummaryDto | null>(null);
+  const [virtualPeriodProfitLoss, setVirtualPeriodProfitLoss] = useState<ProfitLossDto | null>(null);
+  const [realPeriodProfitLoss, setRealPeriodProfitLoss] = useState<ProfitLossDto | null>(null);
+  const [virtualPeriodProfitLossUnsupported, setVirtualPeriodProfitLossUnsupported] = useState(false);
   const [marketRegime, setMarketRegime] = useState<RegimeResponseDto | null>(null);
   const [mainAccountsLoaded, setMainAccountsLoaded] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -117,13 +130,18 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
       setVirtualPositionsUs([]);
       setRealPositionsKr([]);
       setRealPositionsUs([]);
-      setVirtualRecentOrders([]);
+      setVirtualOverseasSummary(null);
+      setRealOverseasSummary(null);
+        setVirtualRecentOrders([]);
       setRealRecentOrders([]);
       setVirtualPipelineSummary(null);
       setRealPipelineSummary(null);
         setVirtualTradingSetting(null);
         setRealTradingSetting(null);
         setPerformanceSummary(null);
+        setVirtualPeriodProfitLoss(null);
+        setRealPeriodProfitLoss(null);
+        setVirtualPeriodProfitLossUnsupported(false);
         setMarketRegime(null);
         return;
     }
@@ -132,23 +150,44 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     setLoading(true);
     setError(null);
 
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+
     const loadVirtual = virtualAccountNo
-      ? Promise.all([
-          getAccountAssets(virtualAccountNo),
-          getPositions(virtualAccountNo, "KR"),
-          getPositions(virtualAccountNo, "US"),
-          getOrders(virtualAccountNo),
-          getPipelineSummary(virtualAccountNo),
-          getSettingByAccountNo(virtualAccountNo)
-        ]).then(([assets, posKr, posUs, orders, pipeline, setting]) => ({
-          assets,
-          positionsKr: posKr ?? [],
-          positionsUs: posUs ?? [],
-          positions: [...(posKr ?? []), ...(posUs ?? [])],
-          recentOrders: (orders ?? []).slice(0, 10),
-          pipelineSummary: pipeline,
-          tradingSetting: setting
-        }))
+      ? (async () => {
+          let periodPl: ProfitLossDto | null = null;
+          let periodPlUnsupported = false;
+          try {
+            periodPl = await getProfitLoss(virtualAccountNo, startStr, endStr);
+          } catch (e) {
+            if (e instanceof ApiError && e.code === "API_NOT_SUPPORTED") periodPlUnsupported = true;
+            else periodPl = null;
+          }
+          const [assets, posKr, posUs, overseasSummary, orders, pipeline, setting] = await Promise.all([
+            getAccountAssets(virtualAccountNo),
+            getPositions(virtualAccountNo, "KR"),
+            getPositions(virtualAccountNo, "US"),
+            getOverseasSummary(virtualAccountNo),
+            getOrders(virtualAccountNo),
+            getPipelineSummary(virtualAccountNo),
+            getSettingByAccountNo(virtualAccountNo)
+          ]);
+          return {
+            assets,
+            positionsKr: posKr ?? [],
+            positionsUs: posUs ?? [],
+            positions: [...(posKr ?? []), ...(posUs ?? [])],
+            overseasSummary: overseasSummary ?? null,
+            recentOrders: (orders ?? []).slice(0, 10),
+            pipelineSummary: pipeline,
+            tradingSetting: setting,
+            periodProfitLoss: periodPl,
+            periodProfitLossUnsupported: periodPlUnsupported
+          };
+        })()
       : Promise.resolve(null);
 
     const loadReal = realAccountNo
@@ -156,17 +195,21 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
           getAccountAssets(realAccountNo),
           getPositions(realAccountNo, "KR"),
           getPositions(realAccountNo, "US"),
+          getOverseasSummary(realAccountNo),
           getOrders(realAccountNo),
           getPipelineSummary(realAccountNo),
-          getSettingByAccountNo(realAccountNo)
-        ]).then(([assets, posKr, posUs, orders, pipeline, setting]) => ({
+          getSettingByAccountNo(realAccountNo),
+          getProfitLoss(realAccountNo, startStr, endStr).catch(() => null)
+        ]).then(([assets, posKr, posUs, overseasSummary, orders, pipeline, setting, periodPl]) => ({
           assets,
           positionsKr: posKr ?? [],
           positionsUs: posUs ?? [],
           positions: [...(posKr ?? []), ...(posUs ?? [])],
+          overseasSummary: overseasSummary ?? null,
           recentOrders: (orders ?? []).slice(0, 10),
           pipelineSummary: pipeline,
-          tradingSetting: setting
+          tradingSetting: setting,
+          periodProfitLoss: periodPl ?? null
         }))
       : Promise.resolve(null);
 
@@ -184,34 +227,44 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
           setVirtualPositions(virtualData.positions);
           setVirtualPositionsKr(virtualData.positionsKr);
           setVirtualPositionsUs(virtualData.positionsUs);
+          setVirtualOverseasSummary(virtualData.overseasSummary ?? null);
           setVirtualRecentOrders(virtualData.recentOrders);
           setVirtualPipelineSummary(virtualData.pipelineSummary);
           setVirtualTradingSetting(virtualData.tradingSetting);
+          setVirtualPeriodProfitLoss(virtualData.periodProfitLoss ?? null);
+          setVirtualPeriodProfitLossUnsupported(virtualData.periodProfitLossUnsupported ?? false);
         } else {
           setVirtualAssets(null);
           setVirtualPositions([]);
           setVirtualPositionsKr([]);
           setVirtualPositionsUs([]);
+          setVirtualOverseasSummary(null);
           setVirtualRecentOrders([]);
           setVirtualPipelineSummary(null);
           setVirtualTradingSetting(null);
+          setVirtualPeriodProfitLoss(null);
+          setVirtualPeriodProfitLossUnsupported(false);
         }
         if (realData) {
           setRealAssets(realData.assets);
           setRealPositions(realData.positions);
           setRealPositionsKr(realData.positionsKr);
           setRealPositionsUs(realData.positionsUs);
+          setRealOverseasSummary(realData.overseasSummary ?? null);
           setRealRecentOrders(realData.recentOrders);
           setRealPipelineSummary(realData.pipelineSummary);
           setRealTradingSetting(realData.tradingSetting);
+          setRealPeriodProfitLoss(realData.periodProfitLoss ?? null);
         } else {
           setRealAssets(null);
           setRealPositions([]);
           setRealPositionsKr([]);
           setRealPositionsUs([]);
+          setRealOverseasSummary(null);
           setRealRecentOrders([]);
           setRealPipelineSummary(null);
           setRealTradingSetting(null);
+          setRealPeriodProfitLoss(null);
         }
         setPerformanceSummary(perf);
         setMarketRegime(regime ?? null);
@@ -244,6 +297,8 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     virtualPositionsUs,
     realPositionsKr,
     realPositionsUs,
+    virtualOverseasSummary,
+    realOverseasSummary,
     virtualRecentOrders,
     realRecentOrders,
     virtualPipelineSummary,
@@ -255,6 +310,9 @@ export function useDashboardData(serverType: ServerType): UseDashboardDataResult
     pipelineSummary,
     tradingSetting,
     performanceSummary,
+    virtualPeriodProfitLoss,
+    realPeriodProfitLoss,
+    virtualPeriodProfitLossUnsupported,
     marketRegime,
     loading,
     error,

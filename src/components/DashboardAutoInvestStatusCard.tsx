@@ -7,6 +7,8 @@ export interface DashboardAutoInvestStatusCardProps {
   /** 자동투자 ON 여부 */
   autoTradingEnabled: boolean;
   pipelineSummary: PipelineSummaryDto | null;
+  /** 파이프라인 자동 실행 여부. false이면 권장만 계산·주문 미실행 안내 표시 */
+  pipelineAutoExecute?: boolean | null;
   onNavigateDetail: (path: string) => void;
   serverType: number;
 }
@@ -31,6 +33,7 @@ function formatLastRun(lastRunAt: string | null | undefined): string {
 export function DashboardAutoInvestStatusCard({
   autoTradingEnabled,
   pipelineSummary,
+  pipelineAutoExecute,
   onNavigateDetail,
   serverType
 }: DashboardAutoInvestStatusCardProps) {
@@ -41,6 +44,11 @@ export function DashboardAutoInvestStatusCard({
   return (
     <Card title="자동투자 상태">
       <div className="flex flex-col gap-4">
+        {pipelineAutoExecute === false && (
+          <p className="text-xs text-muted-foreground">
+            파이프라인 자동 실행 OFF — 권장만 계산되며 실제 주문은 실행되지 않습니다.
+          </p>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
             {autoTradingEnabled ? "정상 실행중" : "중지됨"}
@@ -55,18 +63,18 @@ export function DashboardAutoInvestStatusCard({
             {autoTradingEnabled ? "ON" : "OFF"}
           </span>
         </div>
-        <dl className="grid gap-2 text-sm">
-          <div>
-            <dt className="text-muted-foreground">파이프라인</dt>
-            <dd className="font-medium text-foreground">—</dd>
+        <dl className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-muted-foreground shrink-0">파이프라인</dt>
+            <dd className="font-medium text-foreground text-right">—</dd>
           </div>
-          <div>
-            <dt className="text-muted-foreground">마지막 실행</dt>
-            <dd className="font-medium text-foreground">{lastRun}</dd>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-muted-foreground shrink-0">마지막 실행</dt>
+            <dd className="font-medium text-foreground text-right whitespace-nowrap">{lastRun}</dd>
           </div>
-          <div>
-            <dt className="text-muted-foreground">시그널 수</dt>
-            <dd className="font-medium text-foreground">
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-muted-foreground shrink-0">시그널 수</dt>
+            <dd className="font-medium text-foreground text-right whitespace-nowrap">
               KR {signalKr} / US {signalUs}
             </dd>
           </div>
@@ -74,7 +82,7 @@ export function DashboardAutoInvestStatusCard({
         <button
           type="button"
           onClick={() => onNavigateDetail(`/auto-invest?serverType=${serverType}`)}
-          className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+          className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap"
         >
           자동투자 현황 자세히 보기
           <span aria-hidden>↗</span>

@@ -7,7 +7,9 @@ vi.mock("@/api/userAccountsApi", () => ({
 }));
 vi.mock("@/api/accountApi", () => ({
   getAccountAssets: vi.fn(),
-  getPositions: vi.fn()
+  getPositions: vi.fn(),
+  getOverseasSummary: vi.fn(),
+  getProfitLoss: vi.fn()
 }));
 vi.mock("@/api/ordersApi", () => ({
   getOrders: vi.fn()

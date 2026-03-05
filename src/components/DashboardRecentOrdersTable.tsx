@@ -31,9 +31,13 @@ export function DashboardRecentOrdersTable({
     const typeLabel = orderTypeLabel[o.orderType] ?? o.orderType;
     const status = statusLabel[o.status] ?? o.status;
     const isExecuted = o.status === "EXECUTED" || o.status === "PARTIAL";
+    const badgeClass =
+      o.orderType === "BUY"
+        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+        : "bg-destructive/10 text-destructive";
     return [
       <span key="order" className="flex items-center gap-2">
-        <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${badgeClass}`}>
           {typeLabel}
         </span>
         <span className="font-medium">{o.symbol}</span>

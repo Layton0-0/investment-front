@@ -216,6 +216,14 @@ export const AutoInvest = () => {
               US: {summary?.signalCountUs ?? "-"}
             </div>
           </div>
+          <div className="mt-2 pt-2 border-t border-[#2a2d35] text-xs text-[#8b95a1]">
+            <div><strong className="text-[#c4c8ce]">시그널 기준</strong></div>
+            <div className="mt-1">KR: 이격도 · 변동성 돌파 · 수급 강도 · 역발상 RSI</div>
+            <div>US: 듀얼 모멘텀 · 퀄리티-성장</div>
+            <div className="mt-1">
+              시그널 기준 상세: 전략 레지스트리(docs/02-architecture/00-strategy-registry.md) §3.2 참고
+            </div>
+          </div>
         </Card>
         <Card title="3단계: 자금 배분">
           <div className="text-center py-4">
@@ -235,12 +243,13 @@ export const AutoInvest = () => {
 
       <Card title="시그널 목록">
         <DataTable
-          headers={["종목", "시장", "시그널", "강도", "목표가"]}
+          headers={["종목", "시장", "시그널 유형", "시그널", "강도", "목표가"]}
           rows={signals.map((s) => {
             const sigType = signalTypeFromScore(typeof s.score === "number" ? s.score : undefined);
             return [
               String(s.symbol ?? "-"),
               String(s.market || "-"),
+              String(s.factorType ?? "-"),
               <Badge
                 key="sig"
                 status={sigType === "BUY" ? "active" : sigType === "SELL" ? "failed" : "neutral"}

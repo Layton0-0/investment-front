@@ -1,9 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAttribution, type PerformanceAttributionDto } from "@/api/riskApi";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
-const CHART_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
+function mapToPieData(record: Record<string, number> | undefined): { name: string; value: number }[] {
+  if (!record || typeof record !== "object") return [];
+  return Object.entries(record)
+    .filter(([, v]) => Number(v) !== 0)
+    .map(([name, value]) => ({ name, value: Number(value) }));
+}
+
+const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 export function DashboardAttributionCard() {
   const [data, setData] = useState<PerformanceAttributionDto | null>(null);
@@ -11,19 +18,21 @@ export function DashboardAttributionCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     getAttribution()
-      .then((dto) => {
-        if (mounted) setData(dto);
+      .then((d) => {
+        if (!cancelled) setData(d);
       })
       .catch((e) => {
-        if (mounted) setError(e instanceof Error ? e.message : "귀인 조회 실패");
+        if (!cancelled) setError(e instanceof Error ? e.message : "귀인 데이터 조회 실패");
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (!cancelled) setLoading(false);
       });
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, []);
 
@@ -31,7 +40,7 @@ export function DashboardAttributionCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">성과 귀인</CardTitle>
+          <CardTitle className="text-base">성과 귀인 (팩터/전략별 기여도)</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">로딩 중…</p>
@@ -44,7 +53,7 @@ export function DashboardAttributionCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">성과 귀인</CardTitle>
+          <CardTitle className="text-base">성과 귀인 (팩터/전략별 기여도)</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-destructive">{error}</p>
@@ -54,51 +63,49 @@ export function DashboardAttributionCard() {
   }
 
   const totalPnl = data?.totalRealizedPnl ?? 0;
-  const byFactor = data?.byFactor?.filter((f) => Number(f.contributionPct) > 0) ?? [];
-  const byStrategy = data?.byStrategy?.filter((s) => Number(s.contributionPct) > 0) ?? [];
-  const hasChart = byFactor.length > 0 || byStrategy.length > 0;
+  const bySignal = mapToPieData(data?.bySignalType);
+  const byStrategy = mapToPieData(data?.byStrategyType);
+  const hasAny = bySignal.length > 0 || byStrategy.length > 0;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">성과 귀인</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          청산 포지션 기준 팩터/전략별 수익 기여도
-          {totalPnl !== 0 && (
-            <span className="ml-1">
-              · 실현 손익 {totalPnl >= 0 ? "" : "-"}
-              {Math.abs(totalPnl).toLocaleString("ko-KR")}원
-            </span>
-          )}
-        </p>
+        <CardTitle className="text-base">성과 귀인 (팩터/전략별 기여도)</CardTitle>
       </CardHeader>
-      <CardContent>
-        {!hasChart && (
-          <p className="text-sm text-muted-foreground">청산된 포지션이 없어 기여도를 표시할 수 없습니다.</p>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          청산된 포지션 기준 실현 손익·기여율 (합 100%)
+        </p>
+        <p className="text-sm font-medium">
+          총 실현 손익:{" "}
+          <span className={totalPnl >= 0 ? "text-green-600" : "text-red-600"}>
+            ₩{totalPnl.toLocaleString("ko-KR")}
+          </span>
+        </p>
+        {!hasAny && (
+          <p className="text-sm text-muted-foreground">청산된 포지션이 없으면 기여도가 표시되지 않습니다.</p>
         )}
-        {hasChart && (
+        {hasAny && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {byFactor.length > 0 && (
+            {bySignal.length > 0 && (
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-2">팩터별 기여</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">시그널(팩터)별 기여율</p>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={byFactor.map((f) => ({ name: f.factor, value: Number(f.contributionPct) }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
-                      paddingAngle={2}
+                      data={bySignal}
                       dataKey="value"
                       nameKey="name"
-                      label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      label={({ name, value }) => `${name} ${value}%`}
                     >
-                      {byFactor.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      {bySignal.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                    <Tooltip formatter={(v: number) => `${v}%`} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -106,25 +113,23 @@ export function DashboardAttributionCard() {
             )}
             {byStrategy.length > 0 && (
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-2">전략별 기여</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">전략별 기여율</p>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={byStrategy.map((s) => ({ name: s.strategy, value: Number(s.contributionPct) }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
-                      paddingAngle={2}
+                      data={byStrategy}
                       dataKey="value"
                       nameKey="name"
-                      label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      label={({ name, value }) => `${name} ${value}%`}
                     >
                       {byStrategy.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                    <Tooltip formatter={(v: number) => `${v}%`} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>

@@ -41,6 +41,29 @@ export async function getAccountAssets(
   }
 }
 
+export interface OverseasBalanceSummaryDto {
+  deposit?: number;
+  totalAsset?: number;
+  totalProfitLoss?: number;
+  totalProfitLossRate?: number;
+  currency?: string;
+}
+
+/** 해외(미국) 계좌 요약 — 예수금·총자산. 대시보드 US 계좌 카드용. 404 시 null. */
+export async function getOverseasSummary(
+  accountNo: string
+): Promise<OverseasBalanceSummaryDto | null> {
+  try {
+    return await apiFetch<OverseasBalanceSummaryDto>(
+      `/api/v1/accounts/${encodeURIComponent(accountNo)}/overseas-summary`,
+      { method: "GET" }
+    );
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return null;
+    throw e;
+  }
+}
+
 /** 보유 종목 조회. market=KR(국내만), market=US(해외만), 미지정 시 국내+해외 병합. 404 시 빈 배열 반환. */
 export async function getPositions(
   accountNo: string,
@@ -154,7 +177,7 @@ export interface ProfitLossDto {
   [key: string]: unknown;
 }
 
-/** 기간별손익조회. */
+/** 기간별손익조회. 404/계좌 없음 시 null. 400 + code=API_NOT_SUPPORTED(모의 미지원) 시 예외 유지해 호출처에서 "모의계좌 미지원" 표기 가능. */
 export async function getProfitLoss(
   accountNo: string,
   startDate: string,
@@ -166,6 +189,7 @@ export async function getProfitLoss(
       { method: "GET" }
     );
   } catch (e) {
+    if (e instanceof ApiError && e.status === 400 && e.code === "API_NOT_SUPPORTED") throw e;
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return null;
     throw e;
   }

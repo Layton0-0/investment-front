@@ -1,5 +1,6 @@
 import React from "react";
 import { Card, DataTable } from "./UI";
+import { formatPercent, profitLossColorClass } from "@/lib/utils";
 import type { AccountPositionDto } from "@/api/accountApi";
 
 export interface DashboardHoldingsTableProps {
@@ -18,7 +19,8 @@ export function DashboardHoldingsTable({
     const market = p.market ?? "KR";
     const marketTag = market === "US" ? "US" : "KR";
     const rate = Number(p.profitLossRate ?? 0);
-    const rateStr = `${rate >= 0 ? "+" : ""}${rate}%`;
+    const rateStr = formatPercent(rate, { signed: true });
+    const rateClass = profitLossColorClass(rate);
     return [
       <span key="symbol" className="flex items-center gap-2">
         <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
@@ -27,7 +29,9 @@ export function DashboardHoldingsTable({
         <span className="font-medium">{p.symbol}</span>
       </span>,
       String(p.quantity ?? "-"),
-      rateStr
+      <span key="rate" className={rateClass}>
+        {rateStr}
+      </span>,
     ];
   });
 

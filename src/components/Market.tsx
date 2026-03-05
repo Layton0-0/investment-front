@@ -20,8 +20,9 @@ import { getPortfolioRiskMetrics, type PortfolioRiskMetricsDto } from "@/api/ris
 import type { OrderResponseDto } from "@/api/ordersApi";
 import { getSafeHref } from "@/utils/secureUrl";
 import { analyze, type AnalysisResponseDto } from "@/api/analysisApi";
+import { ApiError } from "@/api/http";
 import { getCurrentPrice, searchSymbols, type CurrentPriceDto, type SymbolSearchItemDto } from "@/api/marketDataApi";
-import { getPositions, type AccountPositionDto } from "@/api/accountApi";
+import { getPositions, getOrderHistory, type AccountPositionDto, type OrderHistoryItemDto } from "@/api/accountApi";
 import { getTaxSummary, type TaxReportSummaryDto } from "@/api/reportApi";
 import {
   Dialog,
@@ -207,7 +208,13 @@ function AnalysisModal({
       const data = await getCurrentPrice(symbol.trim());
       setCurrentPriceData(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "현재가 조회에 실패했습니다.");
+      const message =
+        e instanceof ApiError && e.status === 404
+          ? "현재가를 불러올 수 없습니다. (종목 코드 확인 또는 시장 데이터 API 설정 필요)"
+          : e instanceof Error
+            ? e.message
+            : "현재가 조회에 실패했습니다.";
+      setError(message);
       setCurrentPriceData(null);
     } finally {
       setLoadingPrice(false);
@@ -743,6 +750,8 @@ export const Orders = () => {
   const [error, setError] = useState<string | null>(null);
   const [accountNo, setAccountNo] = useState<string | null>(null);
   const [items, setItems] = useState<OrderResponseDto[]>([]);
+  /** 한투 API 주문체결조회 (최근 7일) */
+  const [brokerOrderHistory, setBrokerOrderHistory] = useState<OrderHistoryItemDto[]>([]);
   /** 주문 시 사용할 종목 코드 (API 전달용) */
   const [orderSymbol, setOrderSymbol] = useState("");
   /** 화면 표시용 종목 명칭 */
@@ -794,8 +803,22 @@ export const Orders = () => {
     try {
       const main = await getMainAccount(auth.serverType === 1 ? "1" : "0");
       setAccountNo(main?.accountNo ?? null);
-      const list = main ? await getOrders(main.accountNo) : [];
-      setItems(list);
+      if (main?.accountNo) {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        const startStr = startDate.toISOString().slice(0, 10);
+        const endStr = endDate.toISOString().slice(0, 10);
+        const [list, brokerHistory] = await Promise.all([
+          getOrders(main.accountNo),
+          getOrderHistory(main.accountNo, startStr, endStr).catch(() => [])
+        ]);
+        setItems(list);
+        setBrokerOrderHistory(brokerHistory ?? []);
+      } else {
+        setItems([]);
+        setBrokerOrderHistory([]);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "주문 조회에 실패했습니다.");
     } finally {
@@ -969,6 +992,23 @@ export const Orders = () => {
           getRowKey={(_, i) => `order-${items[i]?.orderId ?? i}`}
         />
       </Card>
+
+      {accountNo && (
+        <Card title="한투 API 체결 내역 (최근 7일)">
+          <DataTable
+            headers={["주문시간", "종목", "구분", "가격", "수량", "상태"]}
+            rows={brokerOrderHistory.map((o) => [
+              String(o.orderTime ?? "-"),
+              String(o.symbol ?? "-"),
+              String(o.orderType ?? "-"),
+              String(o.price ?? "-"),
+              String(o.quantity ?? "-"),
+              String(o.status ?? "-")
+            ])}
+            getRowKey={(_, i) => `broker-${i}`}
+          />
+        </Card>
+      )}
     </div>
   );
 };

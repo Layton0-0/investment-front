@@ -15,25 +15,40 @@ import {
 import { Button as ShadButton } from "@/components/ui/button";
 import { Power } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { DashboardKpiCards } from "./DashboardKpiCards";
 import { DashboardAutoInvestStatusCard } from "./DashboardAutoInvestStatusCard";
 import { DashboardHoldingsTable } from "./DashboardHoldingsTable";
 import { DashboardRecentOrdersTable } from "./DashboardRecentOrdersTable";
 import { DashboardAttributionCard } from "./DashboardAttributionCard";
+import {
+  formatCurrencyKr,
+  formatCurrencyUs,
+  formatPercent,
+  profitLossColorClass,
+  isKrSymbol,
+} from "@/lib/utils";
 import type { ServerType } from "@/types";
+import type { AccountPositionDto } from "@/api/accountApi";
+import type { OrderResponseDto } from "@/api/ordersApi";
 
-function regimeShortLabel(regime: string | undefined): string {
-  if (!regime) return "—";
-  switch (regime.toUpperCase()) {
-    case "BULL":
-      return "상승장";
-    case "BEAR":
-      return "하락장";
-    case "NEUTRAL":
-      return "횡보장";
-    default:
-      return regime;
+function sumPositionValues(positions: AccountPositionDto[]): number {
+  return positions.reduce((sum, p) => sum + Number(p.totalValue ?? 0), 0);
+}
+
+function weightedAvgProfitLossRate(positions: AccountPositionDto[]): number | null {
+  if (positions.length === 0) return null;
+  let totalValue = 0;
+  let weightedSum = 0;
+  for (const p of positions) {
+    const val = Number(p.totalValue ?? 0);
+    const rate = Number(p.profitLossRate ?? 0);
+    totalValue += val;
+    weightedSum += val * rate;
   }
+  return totalValue > 0 ? weightedSum / totalValue : null;
+}
+
+function filterOrdersByKr(orders: OrderResponseDto[], kr: boolean): OrderResponseDto[] {
+  return orders.filter((o) => isKrSymbol(o.symbol) === kr);
 }
 
 export interface DashboardProps {
@@ -63,6 +78,8 @@ export const Dashboard = ({
     virtualPositionsUs,
     realPositionsKr,
     realPositionsUs,
+    virtualOverseasSummary,
+    realOverseasSummary,
     virtualRecentOrders,
     realRecentOrders,
     virtualPipelineSummary,
@@ -70,28 +87,54 @@ export const Dashboard = ({
     virtualTradingSetting,
     realTradingSetting,
     performanceSummary,
-    marketRegime,
+    virtualPeriodProfitLossUnsupported,
     loading,
     error
   } = useDashboardData(serverType);
 
   const isVirtual = Number(serverType) === 1;
   const assets = isVirtual ? virtualAssets : realAssets;
-  const totalProfitLossRate = useMemo(() => {
-    if (!assets?.totalProfitLossRate) return null;
-    return Number(assets.totalProfitLossRate);
-  }, [assets?.totalProfitLossRate]);
-
-  const mergedPositions = useMemo(() => {
-    const kr = isVirtual ? virtualPositionsKr : realPositionsKr;
-    const us = isVirtual ? virtualPositionsUs : realPositionsUs;
-    return [...(kr ?? []), ...(us ?? [])];
-  }, [isVirtual, virtualPositionsKr, virtualPositionsUs, realPositionsKr, realPositionsUs]);
-
+  const overseasSummary = isVirtual ? virtualOverseasSummary : realOverseasSummary;
   const recentOrders = isVirtual ? virtualRecentOrders : realRecentOrders;
   const pipelineSummary = isVirtual ? virtualPipelineSummary : realPipelineSummary;
   const tradingSetting = isVirtual ? virtualTradingSetting : realTradingSetting;
   const autoTradingEnabled = tradingSetting?.autoTradingEnabled ?? false;
+
+  const positionsKr = isVirtual ? virtualPositionsKr : realPositionsKr;
+  const positionsUs = isVirtual ? virtualPositionsUs : realPositionsUs;
+  const ordersKr = useMemo(() => filterOrdersByKr(recentOrders, true), [recentOrders]);
+  const ordersUs = useMemo(() => filterOrdersByKr(recentOrders, false), [recentOrders]);
+
+  const krSummary = useMemo(() => {
+    const totalAsset = sumPositionValues(positionsKr ?? []);
+    const totalAssetDisplay =
+      totalAsset > 0 ? totalAsset : (assets?.totalAssetValue != null ? Number(assets.totalAssetValue) : 0);
+    const rate = weightedAvgProfitLossRate(positionsKr ?? []);
+    return {
+      totalAsset: totalAsset > 0 ? totalAsset : totalAssetDisplay,
+      totalRate: rate ?? (assets?.totalProfitLossRate != null ? Number(assets.totalProfitLossRate) : null),
+      dailyProfitLoss: performanceSummary?.dailyProfitLoss ?? null,
+      deposit: assets?.deposit ?? null,
+    };
+  }, [positionsKr, assets?.totalAssetValue, assets?.totalProfitLossRate, assets?.deposit, performanceSummary?.dailyProfitLoss]);
+
+  const usSummary = useMemo(() => {
+    const totalAssetFromPositions = sumPositionValues(positionsUs ?? []);
+    const totalAsset =
+      overseasSummary?.totalAsset != null && Number(overseasSummary.totalAsset) > 0
+        ? Number(overseasSummary.totalAsset)
+        : totalAssetFromPositions;
+    const rate =
+      overseasSummary?.totalProfitLossRate != null
+        ? Number(overseasSummary.totalProfitLossRate)
+        : weightedAvgProfitLossRate(positionsUs ?? []);
+    return {
+      totalAsset,
+      totalRate: rate ?? null,
+      dailyProfitLoss: null as number | null,
+      deposit: overseasSummary?.deposit != null ? Number(overseasSummary.deposit) : null,
+    };
+  }, [positionsUs, overseasSummary]);
 
   const effectiveHasAccount = hasAccount && (!!virtual || !!real);
 
@@ -113,27 +156,12 @@ export const Dashboard = ({
       {loading && <Guardrail message="대시보드 로딩 중…" type="info" />}
       {error && <Guardrail message={error} type="error" />}
 
-      <DashboardKpiCards
-        totalAssetValue={
-          performanceSummary?.totalCurrentValue != null
-            ? Number(performanceSummary.totalCurrentValue)
-            : assets?.totalAssetValue != null
-              ? Number(assets.totalAssetValue)
-              : null
-        }
-        totalProfitLossRate={totalProfitLossRate}
-        maxMddPct={performanceSummary?.maxMddPct ?? null}
-      />
-
-      <p className="text-sm text-muted-foreground" role="status">
-        시장 상태: {regimeShortLabel(marketRegime?.regime)} | 파이프라인: {autoTradingEnabled ? "정상 동작중" : "중지됨"} | 보유 {mergedPositions.length}종목
-      </p>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
         <div className={`min-w-0 ${isAdmin ? "" : "lg:col-span-2"}`}>
           <DashboardAutoInvestStatusCard
             autoTradingEnabled={autoTradingEnabled}
             pipelineSummary={pipelineSummary}
+            pipelineAutoExecute={tradingSetting?.pipelineAutoExecute}
             onNavigateDetail={onNavigate}
             serverType={Number(serverType)}
           />
@@ -190,20 +218,142 @@ export const Dashboard = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
-        <div className="min-w-0">
-          <DashboardHoldingsTable positions={mergedPositions} title="보유 종목" />
+      <section className="space-y-4" aria-labelledby="kr-account-heading">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="kr-account-heading" className="text-lg font-semibold text-foreground">
+            KR 국내 계좌
+          </h2>
+          {isVirtual && virtualPeriodProfitLossUnsupported && (
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              기간별 손익 조회는 모의계좌에서 지원하지 않습니다
+            </span>
+          )}
         </div>
-        <div className="min-w-0">
-          <DashboardRecentOrdersTable orders={recentOrders} title="최근 주문" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">총 자산</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {formatCurrencyKr(krSummary.totalAsset)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">총 수익률</p>
+              <p
+                className={`text-lg font-semibold mt-1 ${
+                  krSummary.totalRate != null ? profitLossColorClass(krSummary.totalRate) : "text-foreground"
+                }`}
+              >
+                {krSummary.totalRate != null ? formatPercent(krSummary.totalRate, { signed: true }) : "—"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">일일 손익 (실계좌 기준)</p>
+              <p
+                className={`text-lg font-semibold mt-1 ${
+                  krSummary.dailyProfitLoss != null ? profitLossColorClass(krSummary.dailyProfitLoss) : "text-foreground"
+                }`}
+              >
+                {krSummary.dailyProfitLoss != null ? formatCurrencyKr(krSummary.dailyProfitLoss) : "—"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">예수금</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {krSummary.deposit != null ? formatCurrencyKr(krSummary.deposit) : "—"}
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
+          <div className="min-w-0">
+            <DashboardHoldingsTable
+              positions={positionsKr ?? []}
+              title="국내 보유 종목"
+              maxRows={5}
+            />
+          </div>
+          <div className="min-w-0">
+            <DashboardRecentOrdersTable
+              orders={ordersKr}
+              title="국내 최근 주문"
+              maxRows={5}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4" aria-labelledby="us-account-heading">
+        <h2 id="us-account-heading" className="text-lg font-semibold text-foreground">
+          US 미국 계좌
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">총 자산</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {formatCurrencyUs(usSummary.totalAsset)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">총 수익률</p>
+              <p
+                className={`text-lg font-semibold mt-1 ${
+                  usSummary.totalRate != null ? profitLossColorClass(usSummary.totalRate) : "text-foreground"
+                }`}
+              >
+                {usSummary.totalRate != null ? formatPercent(usSummary.totalRate, { signed: true }) : "—"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">일일 손익</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {usSummary.dailyProfitLoss != null ? formatCurrencyUs(usSummary.dailyProfitLoss) : "—"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-xs text-muted-foreground">예수금</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {usSummary.deposit != null ? formatCurrencyUs(usSummary.deposit) : "—"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
+          <div className="min-w-0">
+            <DashboardHoldingsTable
+              positions={positionsUs ?? []}
+              title="미국 보유 종목"
+              maxRows={5}
+            />
+          </div>
+          <div className="min-w-0">
+            <DashboardRecentOrdersTable
+              orders={ordersUs}
+              title="미국 최근 주문"
+              maxRows={5}
+            />
+          </div>
+        </div>
+      </section>
 
       <DashboardAttributionCard />
 
       {tradingSetting?.pipelineAutoExecute === false && (
         <Guardrail
-          message="실제 주문 실행이 꺼져 있습니다. 설정에서 파이프라인 자동 실행을 켜면 주문이 실행됩니다."
+          message="파이프라인 자동 실행이 OFF입니다. 권장만 계산되며 실제 주문은 실행되지 않습니다. 설정에서 켜면 주문이 실행됩니다."
           type="info"
         />
       )}

@@ -98,7 +98,6 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
   const [accountListVirtual, setAccountListVirtual] = useState<AccountListResponseDto | null>(null);
   const [accountListReal, setAccountListReal] = useState<AccountListResponseDto | null>(null);
   const [settingMainId, setSettingMainId] = useState<string | null>(null);
-  const [tradingTabType, setTradingTabType] = useState<1 | 0>(1);
   const [tradingLoading, setTradingLoading] = useState(true);
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
   const [roboAdvisorEnabled, setRoboAdvisorEnabled] = useState(false);
@@ -111,7 +110,9 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
   const [pipelineAllowRealExecution, setPipelineAllowRealExecution] = useState<boolean>(false);
 
   const accountCount = (mainMock ? 1 : 0) + (mainReal ? 1 : 0);
-  const currentTradingAccountNo = tradingTabType === 1 ? mainMock?.accountNo ?? null : mainReal?.accountNo ?? null;
+  /** 상단 전역 모의/실계좌 선택(serverType)에 따라 자동투자 설정 대상 계좌 결정. 설정 내 별도 탭 제거. */
+  const effectiveAccountType = accountCount === 2 ? Number(serverType) : (mainMock ? 1 : 0);
+  const currentTradingAccountNo = effectiveAccountType === 1 ? mainMock?.accountNo ?? null : mainReal?.accountNo ?? null;
 
   const loadMainAccounts = useCallback(async () => {
     try {
@@ -125,8 +126,6 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
       setMainReal(real?.accountNo ? { accountNo: real.accountNo } : null);
       setAccountListVirtual(list1);
       setAccountListReal(list0);
-      if (mock?.accountNo && !real?.accountNo) setTradingTabType(1);
-      else if (!mock?.accountNo && real?.accountNo) setTradingTabType(0);
     } catch {
       setMainMock(null);
       setMainReal(null);
@@ -450,29 +449,10 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  {accountCount === 2 ? (tradingTabType === 1 ? "모의계좌" : "실계좌") : mainMock ? "모의계좌" : "실계좌"} 자동투자
+                  {effectiveAccountType === 1 ? "모의계좌" : "실계좌"} 자동투자
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {accountCount === 2 && (
-                  <div className="flex rounded-lg border border-border p-1 bg-muted/30">
-                    <button
-                      type="button"
-                      onClick={() => setTradingTabType(1)}
-                      className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${tradingTabType === 1 ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      모의계좌
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTradingTabType(0)}
-                      className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${tradingTabType === 0 ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      실계좌
-                    </button>
-                  </div>
-                )}
-
                 {tradingLoading && <Guardrail type="info" message="거래 설정 로딩 중…" />}
 
                 <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
@@ -498,7 +478,7 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
                         <AlertDialogHeader>
                           <AlertDialogTitle>자동투자 켜기</AlertDialogTitle>
                           <AlertDialogDescription>
-                            선택한 계좌({accountCount === 2 ? (tradingTabType === 1 ? "모의계좌" : "실계좌") : mainMock ? "모의계좌" : "실계좌"})에서 자동투자를 켜고 저장합니다. 저장 후 즉시 자동 매매가 활성화됩니다. 진행할까요?
+                            선택한 계좌({effectiveAccountType === 1 ? "모의계좌" : "실계좌"})에서 자동투자를 켜고 저장합니다. 저장 후 즉시 자동 매매가 활성화됩니다. 진행할까요?
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -602,7 +582,11 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
                     <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
                       <div>
                         <p className="font-medium">파이프라인 자동 실행</p>
-                        <p className="text-sm text-muted-foreground">시그널에 따라 파이프라인을 자동 실행합니다.</p>
+                        <p className="text-sm text-muted-foreground">
+                          {pipelineAutoExecute
+                            ? "시그널에 따라 파이프라인을 자동 실행합니다."
+                            : "OFF일 때는 권장만 계산되며 실제 주문은 실행되지 않습니다."}
+                        </p>
                       </div>
                       <Switch
                         checked={pipelineAutoExecute}
@@ -610,7 +594,7 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
                         disabled={!currentTradingAccountNo}
                       />
                     </div>
-                    {tradingTabType === 0 && (
+                    {effectiveAccountType === 0 && (
                       <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
                         <div>
                           <p className="font-medium">실계좌 자동 실행 허용</p>
@@ -662,7 +646,7 @@ export const Settings = ({ serverType, onToggleAutoTrade, isAutoTradeOn, setting
             </Card>
           )}
 
-          {serverType === 0 && tradingTabType === 0 && (
+          {effectiveAccountType === 0 && (
             <Guardrail message="실계좌 자동 실행을 켜면 해당 계좌에 대해 실제 주문이 나갑니다. 신중히 설정하세요." type="info" />
           )}
         </TabsContent>

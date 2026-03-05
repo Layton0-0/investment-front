@@ -36,14 +36,35 @@ export default function DashboardPage() {
     }
   };
 
+  const globalNavItems = [
+    { label: "국내 전략", path: "/strategies/kr" },
+    { label: "미국 전략", path: "/strategies/us" },
+    { label: "뉴스", path: "/news" },
+    { label: "포트폴리오", path: "/portfolio" },
+    { label: "주문·체결", path: "/orders" },
+    { label: "설정", path: "/settings" },
+  ] as const;
+
   return (
     <div className="space-y-6 pt-2">
       <div>
         <h1 className="text-2xl font-bold text-foreground">대시보드</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          내 자산·자동투자 상태를 한눈에 확인하세요
+          모의계좌 국내 미국 포트폴리오 현황
         </p>
       </div>
+
+      <nav className="flex flex-wrap gap-2" aria-label="글로벌 메뉴">
+        {globalNavItems.map(({ label, path }) => (
+          <Link
+            key={path}
+            to={linkTo(path)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border bg-card text-card-foreground hover:bg-accent hover:text-accent-foreground text-sm font-medium transition-colors"
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       {!isAutoTradeOn && (
         <Card className="border-warning/50 bg-warning/5">

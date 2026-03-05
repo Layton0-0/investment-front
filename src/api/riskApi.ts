@@ -59,11 +59,13 @@ export interface RiskHistoryItemDto {
   occurredAt?: string;
 }
 
-/** 성과 귀인 (GET /api/v1/risk/attribution) - 팩터/전략별 수익 기여도 */
+/** 성과 귀인 (GET /api/v1/risk/attribution) - 팩터/전략별 수익 기여도 (기여율 합 100%) */
 export interface PerformanceAttributionDto {
   totalRealizedPnl?: number;
-  byFactor?: { factor: string; pnl: number; contributionPct: number }[];
-  byStrategy?: { strategy: string; pnl: number; contributionPct: number }[];
+  /** 시그널(팩터)별 기여 비율 0~100 */
+  bySignalType?: Record<string, number>;
+  /** 전략 타입별 기여 비율 0~100 */
+  byStrategyType?: Record<string, number>;
 }
 
 export function getAttribution(): Promise<PerformanceAttributionDto> {

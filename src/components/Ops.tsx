@@ -767,8 +767,9 @@ const SystemSettingsView = () => {
     batch: "배치",
     risk: "리스크",
     intraday: "장중 변동성 돌파",
+    marketData: "시장 데이터·WebSocket",
   };
-  const groupOrder = ["pipeline", "governance", "batch", "risk", "intraday"];
+  const groupOrder = ["pipeline", "marketData", "governance", "batch", "risk", "intraday"];
   const getGroup = (key: string) => {
     const prefix = key.split(".")[0] ?? "";
     return groupOrder.includes(prefix) ? prefix : "other";

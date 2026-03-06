@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Card, DataTable, Button, Input, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
@@ -32,6 +32,30 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+/** 뉴스·공시 필터용 원천 옵션 (백엔드 source 파라미터 값). KRX 포함. */
+const NEWS_SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  { value: "DART", label: "DART" },
+  { value: "SEC_EDGAR", label: "SEC EDGAR" },
+  { value: "KRX", label: "KRX" },
+  { value: "YAHOO_FINANCE", label: "Yahoo Finance" },
+  { value: "YONHAP", label: "연합" },
+];
+
+/** 뉴스·공시 필터용 시장 옵션. */
+const NEWS_MARKET_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  { value: "KR", label: "KR" },
+  { value: "US", label: "US" },
+];
 
 /** API가 ISO 문자열 또는 배열(year,month,day,h,m,s,nano)로 줄 수 있음. 읽기 쉬운 시간 문자열로 변환. */
 function formatNewsDateTime(value: string | number[] | null | undefined): string {
@@ -70,6 +94,10 @@ export const News = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<NewsItemDto[]>([]);
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(20);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [collecting, setCollecting] = useState(false);
   const [collectMessage, setCollectMessage] = useState<string | null>(null);
   const [showCollectDoneModal, setShowCollectDoneModal] = useState(false);
@@ -78,18 +106,27 @@ export const News = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getNews({ market, source, from, symbol, title, page: 0, size: 20 });
+      const res = await getNews({ market, source, from, symbol, title, page, size: pageSize });
       setRows(res.content ?? []);
+      setTotalElements(res.totalElements ?? 0);
+      setTotalPages(res.totalPages ?? 0);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "뉴스 조회에 실패했습니다.");
     } finally {
       setLoading(false);
     }
+  }, [market, source, from, symbol, title, page, pageSize]);
+
+  useEffect(() => {
+    setPage(0);
   }, [market, source, from, symbol, title]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const goToPrevPage = () => setPage((p) => Math.max(0, p - 1));
+  const goToNextPage = () => setPage((p) => Math.min(totalPages - 1, p + 1));
 
   const handleCollect = async () => {
     setCollectMessage(null);
@@ -114,8 +151,34 @@ export const News = () => {
       </p>
       <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-4 rounded-2xl border border-[#f2f4f6]">
         <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
-          <Input label="원천" placeholder="DART/SEC_EDGAR..." value={source} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSource(e.target.value)} />
-          <Input label="시장" placeholder="KR/US" value={market} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMarket(e.target.value)} />
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">원천</Label>
+            <Select value={source === "" ? "__all__" : source} onValueChange={(v) => setSource(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="w-full h-9 rounded-md border border-input bg-input-background">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                {NEWS_SOURCE_OPTIONS.filter((o) => o.value !== "").map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">시장</Label>
+            <Select value={market === "" ? "__all__" : market} onValueChange={(v) => setMarket(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="w-full h-9 rounded-md border border-input bg-input-background">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                {NEWS_MARKET_OPTIONS.filter((o) => o.value !== "").map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Input label="시작일" type="date" value={from} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFrom(e.target.value)} />
           <Input label="종목" placeholder="AAPL..." value={symbol} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSymbol(e.target.value)} />
           <Input label="제목" placeholder="키워드..." value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} />
@@ -159,11 +222,22 @@ export const News = () => {
             표시할 뉴스·공시가 없습니다. &quot;수집 실행&quot;으로 DART·SEC EDGAR 등에서 데이터를 가져올 수 있습니다.
           </p>
         )}
+        {!loading && (rows.length > 0 || totalElements > 0) && (
+          <p className="text-sm text-muted-foreground mb-3">
+            총 <strong className="text-foreground">{totalElements.toLocaleString("ko-KR")}</strong>건
+            {totalPages > 0 && (
+              <span className="ml-2">
+                ({(page + 1).toLocaleString("ko-KR")} / {totalPages.toLocaleString("ko-KR")} 페이지)
+              </span>
+            )}
+          </p>
+        )}
         <DataTable
-          headers={["시간", "시장", "종목", "구분", "제목", "감정"]}
+          headers={["시간", "시장", "원천", "종목", "구분", "제목", "감정"]}
           rows={rows.map((n) => [
             formatNewsDateTime(n.createdAt as string | number[] | undefined),
             String(n.market ?? "-"),
+            String(n.source ?? "-"),
             String(n.symbol ?? "-"),
             String(n.itemType ?? "-"),
             (() => {
@@ -180,6 +254,19 @@ export const News = () => {
             String((n as { sentiment?: string }).sentiment ?? "-")
           ])}
         />
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-border">
+            <Button variant="secondary" disabled={page <= 0 || loading} onClick={goToPrevPage}>
+              이전
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page + 1} / {totalPages} 페이지
+            </span>
+            <Button variant="secondary" disabled={page >= totalPages - 1 || loading} onClick={goToNextPage}>
+              다음
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -199,14 +286,18 @@ function AnalysisModal({
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const priceRequestInFlight = useRef(false);
 
   const handleLoadCurrentPrice = async () => {
     if (!symbol.trim()) return;
+    if (priceRequestInFlight.current) return;
+    priceRequestInFlight.current = true;
     setError(null);
     setLoadingPrice(true);
+    setCurrentPriceData(null);
     try {
       const data = await getCurrentPrice(symbol.trim());
-      setCurrentPriceData(data);
+      setCurrentPriceData(data ?? null);
     } catch (e: unknown) {
       const message =
         e instanceof ApiError && e.status === 404
@@ -218,6 +309,7 @@ function AnalysisModal({
       setCurrentPriceData(null);
     } finally {
       setLoadingPrice(false);
+      priceRequestInFlight.current = false;
     }
   };
 
@@ -646,6 +738,13 @@ export const Portfolio = () => {
   );
 };
 
+/** 종목 코드로 시장 추론: 6자리 숫자면 KR, 아니면 US (수동 주문 시 시장 자동 선택용). */
+function inferMarketFromSymbol(symbol: string): "KR" | "US" {
+  const s = (symbol ?? "").trim();
+  if (s.length === 6 && /^\d+$/.test(s)) return "KR";
+  return "US";
+}
+
 /** 수동 주문용 종목 통합 검색 모달. 검색 후 선택 시 onSelect(symbol, name, market) 호출. */
 function StockSearchModal({
   open,
@@ -685,7 +784,7 @@ function StockSearchModal({
   const handleSelect = (item: SymbolSearchItemDto) => {
     const symbol = item.symbol ?? "";
     const name = item.name ?? symbol;
-    const market = item.market ?? "KR";
+    const market = (item.market && (item.market === "KR" || item.market === "US")) ? item.market : inferMarketFromSymbol(symbol);
     onSelect(symbol, name, market);
     onOpenChange(false);
   };
@@ -766,36 +865,49 @@ export const Orders = () => {
   const [cancellingAll, setCancellingAll] = useState(false);
   const [stockSearchOpen, setStockSearchOpen] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
+  const orderPriceFetchInFlight = useRef(false);
+  const lastOrderPriceFetchedKey = useRef<string | null>(null);
 
-  /** 종목·시장 선택 시 KR이면 현재가 자동 조회하여 가격 필드에 반영 */
+  /** 종목·시장 선택 시 KR이면 현재가 1회만 조회하여 가격 필드에 반영 */
   const fetchCurrentPriceForOrder = useCallback(async (symbol: string, market: string) => {
     if (!symbol.trim() || market !== "KR") return;
+    if (orderPriceFetchInFlight.current) return;
+    const key = `${symbol.trim()}|${market}`;
+    if (lastOrderPriceFetchedKey.current === key) return;
+    orderPriceFetchInFlight.current = true;
+    lastOrderPriceFetchedKey.current = key;
     setPriceLoading(true);
     try {
       const dto = await getCurrentPrice(symbol.trim());
       if (dto?.currentPrice != null && Number(dto.currentPrice) > 0) {
         setOrderPrice(String(Math.round(Number(dto.currentPrice))));
       }
-    } catch {
-      // 조회 실패 시 가격은 비워 둠 (사용자 입력)
+    } catch (err) {
+      // 404 등 실패 시에도 같은 종목 재요청 방지 (무한루프 방지). 키 유지.
+      console.error("[수동주문] 가격 자동 조회 실패:", err);
     } finally {
       setPriceLoading(false);
+      orderPriceFetchInFlight.current = false;
     }
   }, []);
 
-  /** 종목 선택 후 수량 입력 시 가격이 비어 있으면 KR 현재가 자동 조회 */
+  /** 수량 입력 후 가격이 비어 있으면 KR 현재가 1회만 자동 조회 (useEffect 의존 최소화로 연속 호출 방지) */
   useEffect(() => {
     const q = orderQuantity.trim();
     if (
       orderSymbol.trim() &&
       orderMarket === "KR" &&
-      orderPrice === "" &&
+      orderPrice.trim() === "" &&
       q !== "" &&
-      Number(q) > 0
+      Number(q) > 0 &&
+      !priceLoading &&
+      !orderPriceFetchInFlight.current
     ) {
+      const key = `${orderSymbol.trim()}|${orderMarket}`;
+      if (lastOrderPriceFetchedKey.current === key) return;
       fetchCurrentPriceForOrder(orderSymbol.trim(), orderMarket);
     }
-  }, [orderSymbol, orderQuantity, orderMarket, orderPrice, fetchCurrentPriceForOrder]);
+  }, [orderSymbol, orderQuantity, orderMarket, orderPrice, priceLoading, fetchCurrentPriceForOrder]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -912,7 +1024,27 @@ export const Orders = () => {
                 <option value="SELL">매도</option>
               </select>
             </div>
-            <Input label="수량" type="number" value={orderQuantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderQuantity(e.target.value)} placeholder="1" />
+            <Input
+              label="수량"
+              type="number"
+              value={orderQuantity}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                const value = e.target.value;
+                setOrderQuantity(value);
+                // 수량 입력 직후 가격이 비어 있으면 비동기로 현재가 즉시 조회
+                if (
+                  orderSymbol.trim() &&
+                  orderMarket === "KR" &&
+                  orderPrice.trim() === "" &&
+                  value.trim() !== "" &&
+                  Number(value.trim()) > 0 &&
+                  !priceLoading
+                ) {
+                  fetchCurrentPriceForOrder(orderSymbol.trim(), orderMarket);
+                }
+              }}
+              placeholder="1"
+            />
             <Input
               label="가격"
               type="number"

@@ -92,7 +92,6 @@ const Sidebar = ({ currentPath, onNavigate, role }: any) => {
     {
       title: "System",
       items: [
-        { label: '스케줄 현황', path: '/batch', id: 'batch' },
         { label: '백테스트', path: '/backtest', id: 'backtest' },
         { label: '설정', path: '/settings', id: 'settings' },
       ]

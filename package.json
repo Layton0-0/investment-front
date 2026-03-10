@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "test": "vitest",
     "e2e": "playwright test",
-    "e2e:dashboard": "playwright test e2e/dashboard.spec.ts"
+    "e2e:dashboard": "playwright test e2e/dashboard.spec.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report test-results/html-report"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",

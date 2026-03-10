@@ -34,6 +34,7 @@ coverage/
 playwright-report/
 test-results/
 .playwright-browsers/
+logs/
 
 # Vite / TypeScript cache and temp
 .vite/

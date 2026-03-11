@@ -9,14 +9,19 @@ export interface NewsItemDto {
   title: string;
   url?: string;
   createdAt?: string;
+  /** 감정 점수 (-3 ~ +3). null이면 미분석 */
+  sentimentScore?: number | null;
 }
 
+/** 백엔드와 동일: content + page 메타 중첩 구조 */
 export interface NewsItemPageResponseDto {
   content: NewsItemDto[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
+  page: {
+    number: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+  };
 }
 
 export function getNews(params: {

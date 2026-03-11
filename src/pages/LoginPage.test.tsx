@@ -32,8 +32,8 @@ describe("LoginPage", () => {
 
   it("shows login form", async () => {
     renderLoginPage();
-    expect(await screen.findByText(/계정에 로그인하여 포트폴리오를 관리하세요/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("아이디 입력")).toBeInTheDocument();
+    expect(await screen.findByText(/Pulsarve/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("admin / user")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("••••••••")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "로그인" }).length).toBeGreaterThanOrEqual(1);
   });
@@ -41,7 +41,7 @@ describe("LoginPage", () => {
   it("shows generic message on 401 Unauthorized", async () => {
     mockLogin.mockRejectedValue(new ApiError("Unauthorized", 401));
     renderLoginPage();
-    const idInput = await screen.findByPlaceholderText("아이디 입력");
+    const idInput = await screen.findByPlaceholderText("admin / user");
     const passwordInputs = screen.getAllByPlaceholderText("••••••••");
     const loginButtons = screen.getAllByRole("button", { name: "로그인" });
     fireEvent.change(idInput, { target: { value: "user" } });

@@ -108,8 +108,9 @@ export const News = () => {
     try {
       const res = await getNews({ market, source, from, symbol, title, page, size: pageSize });
       setRows(res.content ?? []);
-      setTotalElements(res.totalElements ?? 0);
-      setTotalPages(res.totalPages ?? 0);
+      const meta = res.page;
+      setTotalElements(meta?.totalElements ?? 0);
+      setTotalPages(meta?.totalPages ?? 0);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "뉴스 조회에 실패했습니다.");
     } finally {
@@ -251,7 +252,18 @@ export const News = () => {
               }
               return String(n.title ?? "-");
             })(),
-            String((n as { sentiment?: string }).sentiment ?? "-")
+            (() => {
+              const score = n.sentimentScore;
+              if (score == null) return <span className="text-muted-foreground">미분석</span>;
+              const num = Number(score);
+              if (Number.isNaN(num)) return "-";
+              const label = num < 0 ? "부정" : num > 0 ? "긍정" : "중립";
+              return (
+                <span title={`${num.toFixed(2)}`}>
+                  {label} ({num > 0 ? "+" : ""}{num.toFixed(1)})
+                </span>
+              );
+            })()
           ])}
         />
         {totalPages > 1 && (

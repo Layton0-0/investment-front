@@ -18,14 +18,23 @@ npm run dev
 
 ### API 연동(개발 시)
 
-- **권장**: Vite proxy 사용. `vite.config.ts`에서 `/api`를 백엔드(예: 8080)로 프록시하면 같은 오리진으로 쿠키가 전송됩니다.
-- **환경 자동 감지**: `VITE_API_BASE_URL`을 넣지 않으면, 접속한 origin에 따라 API 주소를 자동 선택합니다. 로컬(localhost/127.0.0.1) → `http://localhost:8080`, 그 외(배포 도메인) → 현재 origin. 따라서 **한 번 빌드로 로컬·배포 공용**으로 쓸 수 있습니다. 필요 시에만 `VITE_API_BASE_URL`로 고정 지정.
+- **환경 자동 감지**: `VITE_API_BASE_URL` 미설정 시, **접속 포트**로 백엔드 주소를 자동 선택합니다.
+  - **http://localhost:5173** (Vite dev) → `http://localhost:8084` (직접 구동 백엔드)
+  - 그 외 localhost/127.0.0.1 (Docker Nginx 등) → `http://localhost:8080`
+  - 그 외(배포 도메인) → 현재 origin
+- 필요 시에만 `.env`에 `VITE_API_BASE_URL`로 고정 지정. Vite proxy(`vite.config.ts`의 `/api`)도 동일 기준으로 동작합니다.
+
+### 로컬 직접 구동 (Docker 없이 백엔드 8084 + 프론트 5173)
+
+- **경로**: `investment-frontend/` (프로젝트 루트)
+- **명령**: `npm install` 후 `npm run dev` → 개발 서버 **http://localhost:5173**
+- **직접 구동 백엔드(8084) 연동**: 포트 5173으로 접속하면 **별도 설정 없이** API가 8084로 연결됩니다. Docker 백엔드(8080)를 쓰려면 `.env`에 `VITE_API_BASE_URL=http://localhost:8080` 설정.
 
 ## 2. 환경 변수
 
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
-| `VITE_API_BASE_URL` | 백엔드 API Base URL. 미설정 시 **자동**: 로컬이면 8080, 배포면 현재 origin | (자동) |
+| `VITE_API_BASE_URL` | 백엔드 API Base URL. 미설정 시 **자동**: 5173→8084, 그 외 로컬→8080, 배포→현재 origin | (자동) |
 | `VITE_BASE_URL` | 라우터 base (배포 시 서브경로 등) | (선택) |
 
 - `.env` 또는 `.env.local`에 설정(커밋 제외). 클라이언트에는 `VITE_` 접두사가 붙은 변수만 노출됩니다.

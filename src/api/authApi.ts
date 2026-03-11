@@ -47,6 +47,12 @@ export interface MyPageResponseDto {
   serverType?: string;
 }
 
+/** 마이페이지 설정용 토큰 조회 응답 (한국투자증권 Access Token, WebSocket Token) */
+export interface AuthTokensResponseDto {
+  accessToken: string;
+  websocketToken: string;
+}
+
 /** 마이페이지 수정 요청 (비밀번호·API 키 등). 변경하지 않을 필드는 생략 */
 export interface MyPageUpdateRequestDto {
   currentPassword?: string;
@@ -60,6 +66,15 @@ export interface MyPageUpdateRequestDto {
 
 export function getMyPage(init?: { skipUnauthorizedHandler?: boolean }) {
   return apiFetch<MyPageResponseDto>("/api/v1/auth/mypage", {
+    method: "GET",
+    ...init
+  });
+}
+
+/** 마이페이지 설정에서 Access Token, WebSocket Token 조회. serverType 미지정 시 모의투자("1") 기준 */
+export function getAuthTokens(serverType?: string, init?: { skipUnauthorizedHandler?: boolean }) {
+  const params = serverType != null ? `?serverType=${encodeURIComponent(serverType)}` : "";
+  return apiFetch<AuthTokensResponseDto>(`/api/v1/auth/tokens${params}`, {
     method: "GET",
     ...init
   });

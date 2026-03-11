@@ -15,7 +15,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        // npm run dev 시 프록시 타깃. 미설정 시 직접 구동 백엔드(8084), Docker 연동 시 VITE_API_BASE_URL=http://localhost:8080
+        target: process.env.VITE_API_BASE_URL ?? "http://localhost:8084",
         changeOrigin: true
       }
     }

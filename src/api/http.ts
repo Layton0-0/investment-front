@@ -27,24 +27,35 @@ export class ApiError extends Error {
   }
 }
 
-/** 로컬 개발 시 사용할 백엔드 기본 URL. */
-const LOCAL_API_BASE_URL = "http://localhost:8080";
+/** Docker 로컬 풀스택: Nginx → Backend 8080 */
+const LOCAL_DOCKER_BACKEND_PORT = 8080;
+/** npm run dev(5173) 시 직접 구동 백엔드 포트 (local-agent 등) */
+const LOCAL_DIRECT_BACKEND_PORT = 8084;
+/** Vite 개발 서버 포트 — 이 포트면 직접 구동 백엔드(8084) 사용 */
+const VITE_DEV_SERVER_PORT = "5173";
 
 /**
- * API Base URL 결정 (환경 자동 감지).
- * - VITE_API_BASE_URL 이 있으면 그대로 사용 (빌드 시 지정).
- * - 없으면: 브라우저 origin 이 localhost/127.0.0.1 이면 로컬 8080, 아니면 현재 origin (배포 환경·동일 호스트 API).
- * 이렇게 하면 한 번 빌드로 로컬·배포 모두 사용 가능.
+ * API Base URL 결정 (환경·실행 방식 자동 감지).
+ * - VITE_API_BASE_URL 이 있으면 그대로 사용 (명시적 설정 우선).
+ * - 없으면: 브라우저가 localhost/127.0.0.1 일 때
+ *   - 포트가 5173 (Vite dev) → http://localhost:8084 (직접 구동 백엔드)
+ *   - 그 외 (Docker Nginx 등) → http://localhost:8080 (Docker 백엔드)
+ * - 그 외 origin → 현재 origin (배포·동일 호스트 API).
  */
 function getApiBaseUrl(): string {
   const env = import.meta.env?.VITE_API_BASE_URL;
   if (env !== undefined && env !== "") return env;
   if (typeof window !== "undefined" && window.location?.origin) {
     const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") return LOCAL_API_BASE_URL;
+    const port = window.location.port;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      const backendPort =
+        port === VITE_DEV_SERVER_PORT ? LOCAL_DIRECT_BACKEND_PORT : LOCAL_DOCKER_BACKEND_PORT;
+      return `http://${hostname}:${backendPort}`;
+    }
     return window.location.origin;
   }
-  return LOCAL_API_BASE_URL;
+  return `http://localhost:${LOCAL_DOCKER_BACKEND_PORT}`;
 }
 
 /** Called on 401 (e.g. JWT invalid/expired). Set by app to logout + redirect to login. */

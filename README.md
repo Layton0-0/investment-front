@@ -68,6 +68,17 @@ VITE_API_BASE_URL=http://localhost:8080 npm run dev
 - `VITE_API_BASE_URL`은 **개발 서버 기동 시**만 읽히므로, 강력 새로고침만으로는 바뀌지 않습니다.
 - `investment-front` 루트의 **`.env` 또는 `.env.local`**을 열어 `VITE_API_BASE_URL=http://localhost:8084`가 있으면 **삭제하거나** `http://localhost:8080`으로 바꾼 뒤, **개발 서버를 종료했다가 다시 실행**하세요 (`npm run dev` 재실행).
 
+### 로컬 직접 구동 (백엔드·프론트 각각 IntelliJ/터미널)
+
+Docker를 올리지 않고 백엔드(8084)·프론트(5173)만 따로 띄워 개발할 때:
+
+| 구분 | 경로 | 명령 |
+|------|------|------|
+| 프론트엔드 | `investment-frontend/` | `npm run dev` → **http://localhost:5173** |
+| 백엔드 연동 | `.env` 또는 `.env.local` | `VITE_API_BASE_URL=http://localhost:8084` 설정 후 `npm run dev` 재실행 |
+
+백엔드는 IntelliJ면 프로필 `local,intellij`, Cursor/스크립트면 `local,local-agent` 로 8084 포트에서 구동 (local 설정 상속). CORS는 기본 설정으로 5173 origin 허용됨.
+
 ## Project structure (요약)
 
 ```

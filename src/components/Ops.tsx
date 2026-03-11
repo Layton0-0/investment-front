@@ -3,7 +3,7 @@ import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { Switch } from "@/components/ui/switch";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
-import { getDataPipelineStatus, getAlerts, getAuditLogs, getTradeJournal, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type AuditLogItemDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getTradeJournal, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, getGovernanceStatus, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type AuditLogItemDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -489,8 +489,26 @@ const AuditView = () => {
           />
         )}
         {!loading && data && (data.totalPages ?? 0) > 1 && (
-          <div className="mt-2 text-sm text-gray-500">
-            페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+          <div className="mt-2 flex gap-2 items-center">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              이전
+            </button>
+            <span className="text-sm text-gray-500">
+              페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+            </span>
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={(data.page ?? 0) >= (data.totalPages ?? 1) - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              다음
+            </button>
           </div>
         )}
       </Card>
@@ -596,22 +614,28 @@ const TradeJournalView = () => {
   );
 };
 
-/** 전략 거버넌스: 검사 결과 이력·활성 halt·halt 해제 (GET results/halts, PUT clear) */
+/** 전략 거버넌스: 검사 결과 이력·활성 halt·halt 해제 (GET results/halts/status, PUT clear, trigger) */
+const GOVERNANCE_CHECK_TRIGGER = "strategy-governance-check";
+
 const GovernanceView = () => {
   const [results, setResults] = useState<GovernanceCheckResultDto[]>([]);
   const [halts, setHalts] = useState<GovernanceHaltDto[]>([]);
+  const [governanceEnabled, setGovernanceEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [limit] = useState(20);
   const [clearing, setClearing] = useState<string | null>(null);
+  const [triggering, setTriggering] = useState(false);
+  const [triggerMessage, setTriggerMessage] = useState<string | null>(null);
 
   const fetchData = React.useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([getGovernanceResults({ limit }), getGovernanceHalts()])
-      .then(([r, h]) => {
+    Promise.all([getGovernanceResults({ limit }), getGovernanceHalts(), getGovernanceStatus()])
+      .then(([r, h, status]) => {
         setResults(r ?? []);
         setHalts(h ?? []);
+        setGovernanceEnabled(status?.governanceEnabled ?? null);
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "전략 거버넌스 조회에 실패했습니다.");
@@ -632,6 +656,20 @@ const GovernanceView = () => {
         setError(e instanceof Error ? e.message : "halt 해제에 실패했습니다.");
       })
       .finally(() => setClearing(null));
+  };
+
+  const handleRunCheck = () => {
+    setTriggering(true);
+    setTriggerMessage(null);
+    trigger(GOVERNANCE_CHECK_TRIGGER)
+      .then((res) => {
+        setTriggerMessage(res?.success ? "검사 실행 요청이 완료되었습니다. 잠시 후 결과를 새로고침합니다." : res?.message ?? "검사 실행 실패");
+        if (res?.success) setTimeout(() => fetchData(), 2000);
+      })
+      .catch((e: unknown) => {
+        setTriggerMessage(e instanceof Error ? e.message : "검사 실행에 실패했습니다.");
+      })
+      .finally(() => setTriggering(false));
   };
 
   if (loading) {
@@ -683,16 +721,48 @@ const GovernanceView = () => {
       ];
     }) ?? [];
 
+  const haltCount = halts?.length ?? 0;
+  const hasNoResults = resultRows.length === 0;
+
   return (
     <div className="space-y-4">
       <Card title="전략 거버넌스 검사 결과 (최근 이력)">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={triggering}
+            onClick={handleRunCheck}
+          >
+            {triggering ? "실행 중…" : "검사 지금 실행"}
+          </Button>
+          {triggerMessage != null && (
+            <span className="text-sm text-gray-600">{triggerMessage}</span>
+          )}
+        </div>
         <DataTable
           headers={["실행 시각", "시장", "전략 유형", "MDD(%)", "Sharpe", "상태", "시작일", "종료일"]}
           rows={resultRows.length ? resultRows : [["이력 없음", "-", "-", "-", "-", "-", "-", "-"]]}
         />
         <p className="mt-2 text-xs text-gray-500">최대 {limit}건 (RUN_AT 내림차순)</p>
+        {hasNoResults && (
+          <p className="mt-2 text-xs text-amber-700">
+            이력이 없으면 위 <strong>검사 지금 실행</strong>을 눌러 1회 실행하세요. 시스템 설정(ops/settings)에서 <strong>governance.enabled</strong>가 true인지 확인하세요. 스케줄은 매월 1일 02:00 KST입니다.
+          </p>
+        )}
+        {hasNoResults && governanceEnabled === false && (
+          <p className="mt-1 text-xs text-red-600">
+            검사가 비활성화되어 있습니다. 시스템 설정에서 governance.enabled를 true로 설정한 뒤 검사를 실행하세요.
+          </p>
+        )}
       </Card>
-      <Card title="활성 Halt (자동 매매 중단 중)">
+      <Card title="활성 Halt 목록">
+        <p className="text-xs text-gray-500 mb-2">해당 시장·전략 조합만 자동 매매 중단됩니다.</p>
+        <p className="text-sm font-medium mb-2">
+          {haltCount === 0
+            ? "거버넌스에 의한 중단: 0건 (해당 조합 없음)"
+            : `거버넌스에 의한 중단: ${haltCount}건`}
+        </p>
         <DataTable
           headers={["시장", "전략 유형", "중단 시각", "사유", "조치"]}
           rows={haltRows.length ? haltRows : [["없음", "-", "-", "-", "-"]]}
@@ -917,8 +987,26 @@ const AlertsView = () => {
           />
         )}
         {!loading && data && (data.totalPages ?? 0) > 1 && (
-          <div className="mt-2 text-sm text-gray-500">
-            페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+          <div className="mt-2 flex gap-2 items-center">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              이전
+            </button>
+            <span className="text-sm text-gray-500">
+              페이지 {((data.page ?? 0) + 1)} / {data.totalPages} (총 {data.totalElements}건)
+            </span>
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline disabled:opacity-50"
+              disabled={(data.page ?? 0) >= (data.totalPages ?? 1) - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              다음
+            </button>
           </div>
         )}
       </Card>
@@ -932,6 +1020,12 @@ const DataPipelineView = () => {
   const [pipeline, setPipeline] = useState<DataPipelineStatusDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchPipeline = React.useCallback(() => {
+    getDataPipelineStatus()
+      .then((data) => setPipeline(data))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "데이터 파이프라인 상태 조회에 실패했습니다."));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -973,7 +1067,7 @@ const DataPipelineView = () => {
           />
         )}
       </Card>
-      <Batch role={auth.role} />
+      <Batch role={auth.role} onRunComplete={fetchPipeline} />
     </div>
   );
 };
@@ -989,12 +1083,22 @@ function formatDateTime(value: string | number | undefined): string {
   return formatDateTimeForPipeline(value);
 }
 
-export const Batch = ({ role }: { role: string }) => {
+const BATCH_REFETCH_DELAY_MS = 2000;
+
+export const Batch = ({ role, onRunComplete }: { role: string; onRunComplete?: () => void }) => {
   const isAdmin = role === "Admin";
   const [message, setMessage] = useState<string | null>(null);
   const [jobs, setJobs] = useState<BatchJobDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchJobs = React.useCallback(() => {
+    setLoading(true);
+    getBatchJobs()
+      .then((list) => setJobs(list ?? []))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "배치 목록 조회에 실패했습니다."))
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -1019,6 +1123,12 @@ export const Batch = ({ role }: { role: string }) => {
     try {
       const res = await trigger(path);
       setMessage(res.message || (res.success ? "실행 완료" : "실행 실패"));
+      if (res?.success) {
+        setTimeout(() => {
+          fetchJobs();
+          onRunComplete?.();
+        }, BATCH_REFETCH_DELAY_MS);
+      }
     } catch (e: unknown) {
       setMessage(e instanceof Error ? e.message : "실행 실패");
     }

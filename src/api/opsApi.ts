@@ -203,6 +203,19 @@ export function getAutoTradingReadiness(): Promise<AutoTradingReadinessDto> {
   return apiFetch<AutoTradingReadinessDto>("/api/v1/ops/auto-trading-readiness", { method: "GET" });
 }
 
+/** 전략 거버넌스 검사 활성 여부 (GET /api/v1/ops/governance/status) */
+export interface GovernanceStatusDto {
+  governanceEnabled?: boolean;
+}
+
+/**
+ * 전략 거버넌스 검사 활성 여부 조회.
+ * GET /api/v1/ops/governance/status (ADMIN 전용)
+ */
+export function getGovernanceStatus(): Promise<GovernanceStatusDto> {
+  return apiFetch<GovernanceStatusDto>("/api/v1/ops/governance/status", { method: "GET" });
+}
+
 /**
  * 전략 거버넌스 최근 검사 결과 조회.
  * GET /api/v1/ops/governance/results (ADMIN 전용)

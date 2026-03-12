@@ -7,12 +7,19 @@ export interface OrderResponseDto {
   orderId: string;
   accountNo: string;
   symbol: string;
+  /** 국내(KR) 6자리 코드일 때 종목명, 해외는 null */
+  symbolName?: string | null;
+  /** 시장 구분 (KR: 원화, US: 달러) */
+  market?: string | null;
   orderType: OrderType;
   quantity: number;
   price: string;
+  /** 주당 가격 × 수량 (총 금액) */
+  totalAmount?: string | null;
   status: OrderStatus;
   orderTime: string;
-  message?: string;
+  /** 실패 시 실패 사유 */
+  message?: string | null;
   /** 거래 사유: 진입 시그널 유형 (파이프라인 매수 시) */
   signalType?: string | null;
   /** 거래 사유: 청산 규칙 유형 (파이프라인 매도 시) */

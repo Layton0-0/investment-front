@@ -80,6 +80,49 @@ function formatNewsDateTime(value: string | number[] | null | undefined): string
   return "-";
 }
 
+/** 주문/체결 시간: 초 단위까지 가독성 있게 (yyyy-MM-dd HH:mm:ss). */
+function formatOrderTime(value: string | null | undefined): string {
+  if (value == null) return "-";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    return `${y}-${mo}-${day} ${h}:${min}:${s}`;
+  } catch {
+    return String(value);
+  }
+}
+
+/** 가격 포맷: 통화 표시, 콤마, 주당/총액. market KR → 원, US → $. */
+function formatOrderPrice(
+  pricePerShare: string | number | null | undefined,
+  totalAmount: string | number | null | undefined,
+  market: string | null | undefined
+): string {
+  const isUs = market === "US";
+  const currency = isUs ? "USD" : "KRW";
+  const sym = isUs ? "$" : "";
+  const suffix = isUs ? "" : "원";
+  const fmt = (v: string | number | null | undefined): string => {
+    if (v == null || v === "") return "-";
+    const n = typeof v === "string" ? parseFloat(v) : v;
+    if (Number.isNaN(n)) return String(v);
+    const s = Math.round(n) === n ? String(n) : n.toFixed(2);
+    const parts = s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return `${sym}${parts}${suffix}`;
+  };
+  const per = fmt(pricePerShare);
+  const total = fmt(totalAmount);
+  if (per === "-" && total === "-") return "-";
+  if (per === "-" || total === "-") return per !== "-" ? `${per} (주당)` : `${total} (총액)`;
+  return `${per} (주당) / ${total} (총액)`;
+}
+
 export const News = () => {
   const [market, setMarket] = useState("");
   const [source, setSource] = useState("");
@@ -1110,13 +1153,15 @@ export const Orders = () => {
         <DataTable
           headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "사유", "관리"]}
           rows={items.map((o) => [
-            String(o.orderTime ?? "-"),
-            String(o.symbol ?? "-"),
+            formatOrderTime(o.orderTime),
+            String(o.symbolName ?? o.symbol ?? "-"),
             String(o.orderType ?? "-"),
-            String(o.price ?? "-"),
+            formatOrderPrice(o.price, o.totalAmount, o.market),
             String(o.quantity ?? "-"),
             String(o.status ?? "-"),
-            String(o.explanation ?? "-"),
+            o.status === "FAILED" && o.message
+              ? `실패: ${o.message}`
+              : String(o.explanation ?? "-"),
             o.status === "PENDING" && accountNo ? (
               <Button
                 variant="ghost"
@@ -1139,16 +1184,24 @@ export const Orders = () => {
 
       {accountNo && (
         <Card title="한투 API 체결 내역 (최근 7일)">
+          <p className="text-sm text-muted-foreground mb-3">
+            증권사에 실제로 전달된 주문·체결만 표시됩니다. 위 표는 본 시스템에서 시도한 모든 주문(실패·취소 포함)입니다.
+          </p>
           <DataTable
             headers={["주문시간", "종목", "구분", "가격", "수량", "상태"]}
-            rows={brokerOrderHistory.map((o) => [
-              String(o.orderTime ?? "-"),
-              String(o.symbol ?? "-"),
-              String(o.orderType ?? "-"),
-              String(o.price ?? "-"),
-              String(o.quantity ?? "-"),
-              String(o.status ?? "-")
-            ])}
+            rows={brokerOrderHistory.map((o) => {
+              const qty = (o as { orderQuantity?: number }).orderQuantity ?? o.quantity ?? 0;
+              const priceStr = (o as { orderPrice?: string }).orderPrice ?? o.price;
+              const total = priceStr != null && qty ? Number(priceStr) * qty : null;
+              return [
+                formatOrderTime(o.orderTime),
+                String(o.symbol ?? "-"),
+                String(o.orderType ?? "-"),
+                formatOrderPrice(priceStr, total, "KR"),
+                String(qty),
+                String((o as { orderStatus?: string }).orderStatus ?? o.status ?? "-")
+              ];
+            })}
             getRowKey={(_, i) => `broker-${i}`}
           />
         </Card>

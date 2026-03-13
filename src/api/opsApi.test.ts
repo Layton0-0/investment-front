@@ -43,6 +43,27 @@ describe("opsApi governance", () => {
     expect(url).toContain("limit=50");
   });
 
+  it("getGovernanceResults caps limit at 500 when over 500", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    await getGovernanceResults({ limit: 600 });
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain("limit=500");
+  });
+
+  it("clearGovernanceHalt encodes market and strategyType in URL", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(undefined, { status: 204 })
+    );
+    await clearGovernanceHalt("KR", "SHORT_TERM");
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain("/api/v1/ops/governance/halts/KR/SHORT_TERM/clear");
+  });
+
   it("getGovernanceHalts calls GET /api/v1/ops/governance/halts", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify([]), {

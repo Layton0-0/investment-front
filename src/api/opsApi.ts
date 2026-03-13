@@ -172,6 +172,10 @@ export interface GovernanceCheckResultDto {
   strategyType?: string;
   mddPct?: number;
   sharpeRatio?: number;
+  /** true = 통과, false = 열화 (백엔드 passed) */
+  passed?: boolean;
+  /** 검사 결과 메시지 (열화 사유 등) */
+  message?: string;
   degraded?: boolean;
   startDate?: string;
   endDate?: string;

@@ -3,7 +3,8 @@ import { Card, DataTable, Badge, Button, Guardrail } from "./UI";
 import { Switch } from "@/components/ui/switch";
 import { getBatchJobs, type BatchJobDto } from "@/api/batchApi";
 import { trigger } from "@/api/triggerApi";
-import { getDataPipelineStatus, getAlerts, getAuditLogs, getTradeJournal, getModelStatus, getHealth, getGovernanceResults, getGovernanceHalts, getGovernanceStatus, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type AuditLogItemDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
+import { getDataPipelineStatus, getAlerts, getAuditLogs, getTradeJournal, getModelStatus, getHealth, clearGovernanceHalt, getSystemSettings, putSystemSetting, type DataPipelineStatusDto, type AlertListResponseDto, type AuditLogListResponseDto, type AuditLogItemDto, type OpsModelStatusDto, type OpsHealthDto, type GovernanceCheckResultDto, type GovernanceHaltDto, type SystemSettingItemDto } from "@/api/opsApi";
+import { useGovernance } from "@/hooks/useGovernance";
 import {
   getRiskSummary,
   getRiskLimits,
@@ -616,44 +617,107 @@ const TradeJournalView = () => {
 
 /** 전략 거버넌스: 검사 결과 이력·활성 halt·halt 해제 (GET results/halts/status, PUT clear, trigger) */
 const GOVERNANCE_CHECK_TRIGGER = "strategy-governance-check";
+const GOVERNANCE_RESULTS_LIMIT = 20;
+
+/** 검사 결과 테이블: run time, market, strategy type, passed/failed, MDD %, Sharpe, message. Single responsibility: present results only. */
+function GovernanceResultsTable({ results }: { results: GovernanceCheckResultDto[] }) {
+  const passedOrFailed = (r: GovernanceCheckResultDto) => {
+    if (r.passed !== undefined) return r.passed ? "Passed" : "Failed";
+    return r.degraded ? "Failed" : "Passed";
+  };
+  const message = (r: GovernanceCheckResultDto) =>
+    (r.message != null && r.message !== "") ? r.message : "-";
+
+  const rows: (string | number)[][] = results.map((r) => [
+    formatDateTimeForPipeline(r.runAt),
+    r.market ?? "-",
+    r.strategyType ?? "-",
+    passedOrFailed(r),
+    r.mddPct != null ? `${formatNumber(Number(r.mddPct))}%` : "-",
+    r.sharpeRatio != null ? formatNumber(Number(r.sharpeRatio)) : "-",
+    message(r),
+  ]);
+
+  if (results.length === 0) {
+    return (
+      <div className="py-8 text-center text-[15px] text-[#8b95a1]">
+        검사 결과가 없습니다. 아래 &quot;검사 지금 실행&quot;으로 1회 실행하거나, 시스템 설정에서 governance.enabled를 확인하세요.
+      </div>
+    );
+  }
+
+  return (
+    <DataTable
+      headers={["실행 시각", "시장", "전략 유형", "Passed/Failed", "MDD %", "Sharpe", "Message"]}
+      rows={rows}
+    />
+  );
+}
+
+/** 활성 halt 카드: 테이블 + Clear 버튼 per row. Single responsibility: present halts and clear action. */
+function GovernanceHaltsCard({
+  halts,
+  onClear,
+  clearingKey,
+}: {
+  halts: GovernanceHaltDto[];
+  onClear: (market: string, strategyType: string) => void;
+  clearingKey: string | null;
+}) {
+  const haltRows: React.ReactNode[][] = halts.map((h) => {
+    const key = `${h.market ?? ""}/${h.strategyType ?? ""}`;
+    return [
+      h.market ?? "-",
+      h.strategyType ?? "-",
+      formatDateTimeForPipeline(h.haltedAt),
+      (h.reason ?? "-").slice(0, 80) + ((h.reason?.length ?? 0) > 80 ? "…" : ""),
+      (
+        <Button
+          variant="secondary"
+          className="text-xs py-1 px-2"
+          disabled={clearingKey !== null}
+          onClick={() => onClear(h.market ?? "", h.strategyType ?? "")}
+        >
+          {clearingKey === key ? "해제 중…" : "Clear"}
+        </Button>
+      ),
+    ];
+  });
+
+  if (halts.length === 0) {
+    return (
+      <div className="py-8 text-center text-[15px] text-[#8b95a1]">
+        활성 halt가 없습니다.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm font-medium mb-2">거버넌스에 의한 중단: {halts.length}건</p>
+      <DataTable
+        headers={["시장", "전략 유형", "중단 시각", "사유", "조치"]}
+        rows={haltRows}
+      />
+    </>
+  );
+}
 
 const GovernanceView = () => {
-  const [results, setResults] = useState<GovernanceCheckResultDto[]>([]);
-  const [halts, setHalts] = useState<GovernanceHaltDto[]>([]);
-  const [governanceEnabled, setGovernanceEnabled] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [limit] = useState(20);
+  const { results, halts, governanceEnabled, loading, error, refetch } = useGovernance(GOVERNANCE_RESULTS_LIMIT);
   const [clearing, setClearing] = useState<string | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
   const [triggerMessage, setTriggerMessage] = useState<string | null>(null);
-
-  const fetchData = React.useCallback(() => {
-    setLoading(true);
-    setError(null);
-    Promise.all([getGovernanceResults({ limit }), getGovernanceHalts(), getGovernanceStatus()])
-      .then(([r, h, status]) => {
-        setResults(r ?? []);
-        setHalts(h ?? []);
-        setGovernanceEnabled(status?.governanceEnabled ?? null);
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "전략 거버넌스 조회에 실패했습니다.");
-      })
-      .finally(() => setLoading(false));
-  }, [limit]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   const handleClearHalt = (market: string, strategyType: string) => {
     const key = `${market}/${strategyType}`;
     setClearing(key);
+    setClearError(null);
     clearGovernanceHalt(market, strategyType)
-      .then(() => fetchData())
+      .then(() => refetch())
       .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "halt 해제에 실패했습니다.");
+        setClearError(e instanceof Error ? e.message : "halt 해제에 실패했습니다.");
       })
       .finally(() => setClearing(null));
   };
@@ -664,7 +728,7 @@ const GovernanceView = () => {
     trigger(GOVERNANCE_CHECK_TRIGGER)
       .then((res) => {
         setTriggerMessage(res?.success ? "검사 실행 요청이 완료되었습니다. 잠시 후 결과를 새로고침합니다." : res?.message ?? "검사 실행 실패");
-        if (res?.success) setTimeout(() => fetchData(), 2000);
+        if (res?.success) setTimeout(() => refetch(), 2000);
       })
       .catch((e: unknown) => {
         setTriggerMessage(e instanceof Error ? e.message : "검사 실행에 실패했습니다.");
@@ -687,43 +751,6 @@ const GovernanceView = () => {
     );
   }
 
-  const resultRows =
-    results?.map((r) => [
-      formatDateTimeForPipeline(r.runAt),
-      r.market ?? "-",
-      r.strategyType ?? "-",
-      r.mddPct != null ? formatNumber(Number(r.mddPct)) : "-",
-      r.sharpeRatio != null ? formatNumber(Number(r.sharpeRatio)) : "-",
-      r.degraded ? "열화" : "정상",
-      r.startDate ?? "-",
-      r.endDate ?? "-",
-    ]) ?? [];
-
-  const haltRows: React.ReactNode[][] =
-    halts?.map((h) => {
-      const key = `${h.market ?? ""}/${h.strategyType ?? ""}`;
-      const clearBtn = (
-        <Button
-          variant="secondary"
-          className="text-xs py-1 px-2"
-          disabled={clearing !== null}
-          onClick={() => handleClearHalt(h.market ?? "", h.strategyType ?? "")}
-        >
-          {clearing === key ? "해제 중…" : "해제"}
-        </Button>
-      );
-      return [
-        h.market ?? "-",
-        h.strategyType ?? "-",
-        formatDateTimeForPipeline(h.haltedAt),
-        (h.reason ?? "-").slice(0, 80) + ((h.reason?.length ?? 0) > 80 ? "…" : ""),
-        clearBtn,
-      ];
-    }) ?? [];
-
-  const haltCount = halts?.length ?? 0;
-  const hasNoResults = resultRows.length === 0;
-
   return (
     <div className="space-y-4">
       <Card title="전략 거버넌스 검사 결과 (최근 이력)">
@@ -740,33 +767,18 @@ const GovernanceView = () => {
             <span className="text-sm text-gray-600">{triggerMessage}</span>
           )}
         </div>
-        <DataTable
-          headers={["실행 시각", "시장", "전략 유형", "MDD(%)", "Sharpe", "상태", "시작일", "종료일"]}
-          rows={resultRows.length ? resultRows : [["이력 없음", "-", "-", "-", "-", "-", "-", "-"]]}
-        />
-        <p className="mt-2 text-xs text-gray-500">최대 {limit}건 (RUN_AT 내림차순)</p>
-        {hasNoResults && (
-          <p className="mt-2 text-xs text-amber-700">
-            이력이 없으면 위 <strong>검사 지금 실행</strong>을 눌러 1회 실행하세요. 시스템 설정(ops/settings)에서 <strong>governance.enabled</strong>가 true인지 확인하세요. 스케줄은 매월 1일 02:00 KST입니다.
-          </p>
-        )}
-        {hasNoResults && governanceEnabled === false && (
-          <p className="mt-1 text-xs text-red-600">
+        <GovernanceResultsTable results={results} />
+        <p className="mt-2 text-xs text-gray-500">최대 {GOVERNANCE_RESULTS_LIMIT}건 (RUN_AT 내림차순)</p>
+        {results.length === 0 && governanceEnabled === false && (
+          <p className="mt-2 text-xs text-red-600">
             검사가 비활성화되어 있습니다. 시스템 설정에서 governance.enabled를 true로 설정한 뒤 검사를 실행하세요.
           </p>
         )}
       </Card>
       <Card title="활성 Halt 목록">
         <p className="text-xs text-gray-500 mb-2">해당 시장·전략 조합만 자동 매매 중단됩니다.</p>
-        <p className="text-sm font-medium mb-2">
-          {haltCount === 0
-            ? "거버넌스에 의한 중단: 0건 (해당 조합 없음)"
-            : `거버넌스에 의한 중단: ${haltCount}건`}
-        </p>
-        <DataTable
-          headers={["시장", "전략 유형", "중단 시각", "사유", "조치"]}
-          rows={haltRows.length ? haltRows : [["없음", "-", "-", "-", "-"]]}
-        />
+        {clearError != null && <Guardrail type="error" message={clearError} />}
+        <GovernanceHaltsCard halts={halts} onClear={handleClearHalt} clearingKey={clearing} />
       </Card>
     </div>
   );

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Card, DataTable, Button, Input, Guardrail } from "./UI";
 import { useAuth } from "@/app/AuthContext";
 import { getMainAccount } from "@/api/userAccountsApi";
-import { cancelOrder, cancelAllPendingOrders, getOrders, placeOrder, type OrderRequestDto } from "@/api/ordersApi";
+import { cancelAllPendingOrders, getOrders, placeOrder, type OrderRequestDto } from "@/api/ordersApi";
 import { getNews, collectNews, type NewsItemDto } from "@/api/newsApi";
 import {
   getTodayPortfolio,
@@ -923,6 +923,12 @@ export const Orders = () => {
   const orderPriceFetchInFlight = useRef(false);
   const lastOrderPriceFetchedKey = useRef<string | null>(null);
 
+  /** 주문 목록 최신순 정렬 (API에서도 내림차순 반환) */
+  const sortedOrderItems = React.useMemo(
+    () => [...items].sort((a, b) => new Date(b.orderTime ?? 0).getTime() - new Date(a.orderTime ?? 0).getTime()),
+    [items]
+  );
+
   /** 종목·시장 선택 시 KR이면 현재가 1회만 조회하여 가격 필드에 반영 */
   const fetchCurrentPriceForOrder = useCallback(async (symbol: string, market: string) => {
     if (!symbol.trim() || market !== "KR") return;
@@ -1151,8 +1157,8 @@ export const Orders = () => {
 
       <Card title="주문 및 체결 내역">
         <DataTable
-          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "사유", "관리"]}
-          rows={items.map((o) => [
+          headers={["주문시간", "종목", "구분", "가격", "수량", "상태", "사유"]}
+          rows={sortedOrderItems.map((o) => [
             formatOrderTime(o.orderTime),
             String(o.symbolName ?? o.symbol ?? "-"),
             String(o.orderType ?? "-"),
@@ -1161,24 +1167,9 @@ export const Orders = () => {
             String(o.status ?? "-"),
             o.status === "FAILED" && o.message
               ? `실패: ${o.message}`
-              : String(o.explanation ?? "-"),
-            o.status === "PENDING" && accountNo ? (
-              <Button
-                variant="ghost"
-                className="text-red-600 text-[10px] p-0 underline"
-                disabled={loading}
-                onClick={async () => {
-                  await cancelOrder(o.orderId, accountNo);
-                  await load();
-                }}
-              >
-                취소
-              </Button>
-            ) : (
-              "-"
-            )
+              : String(o.explanation ?? "-")
           ])}
-          getRowKey={(_, i) => `order-${items[i]?.orderId ?? i}`}
+          getRowKey={(_, i) => `order-${sortedOrderItems[i]?.orderId ?? i}`}
         />
       </Card>
 
